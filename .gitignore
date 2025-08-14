@@ -96,6 +96,17 @@ Thumbs.db
 *.bak
 *.backup
 
+# TrackNet training files
+tracknet_original/
+exps/
+datasets/
+*.tfevents.*
+
+# Training checkpoints and logs
+checkpoints/
+runs/
+tensorboard_logs/
+
 # OS generated files
 .DS_Store
 .DS_Store?
