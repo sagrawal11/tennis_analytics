@@ -2,8 +2,8 @@
 
 # Model Paths
 models:
-  yolo_player: "models/yolov8n.pt"  # Player detection model
-  yolo_pose: "models/yolov11-pose.pt"  # Pose estimation model
+  yolo_player: "playersnball4.pt"  # Your custom YOLOv8 model for players and ball
+  yolo_pose: "models/yolov8n-pose.pt"  # Pose estimation model
   tracknet: "models/tracknet.h5"  # Ball tracking model
 
 # Data Paths

@@ -49,7 +49,15 @@ class TennisAnalyzer:
             'frames': [],
             'trajectories': [],
             'swing_analysis': [],
-            'summary_stats': {}
+            'summary_stats': {
+                'total_frames': 0,
+                'total_players_detected': 0,
+                'total_poses_estimated': 0,
+                'total_ball_detections': 0,
+                'swing_phases': {},
+                'average_processing_time': 0,
+                'processing_times': []
+            }
         }
         
         self._initialize_components()
@@ -88,15 +96,19 @@ class TennisAnalyzer:
             else:
                 logger.warning(f"Pose estimation model not found: {self.config['models']['yolo_pose']}")
             
-            # Initialize ball tracker
-            if Path(self.config['models']['tracknet']).exists():
-                self.ball_tracker = TrackNet(
-                    self.config['models']['tracknet'],
-                    self.config['tracknet']
-                )
-                logger.info("Ball tracker initialized successfully")
-            else:
-                logger.warning(f"TrackNet model not found: {self.config['models']['tracknet']}")
+            # Initialize ball tracker (optional for now)
+            try:
+                if Path(self.config['models']['tracknet']).exists():
+                    self.ball_tracker = TrackNet(
+                        self.config['models']['tracknet'],
+                        self.config['tracknet']
+                    )
+                    logger.info("Ball tracker initialized successfully")
+                else:
+                    logger.warning(f"TrackNet model not found: {self.config['models']['tracknet']}")
+            except Exception as e:
+                logger.warning(f"TrackNet initialization failed: {e}")
+                logger.info("Continuing without ball tracking...")
                 
         except Exception as e:
             logger.error(f"Error initializing components: {e}")
@@ -129,12 +141,9 @@ class TennisAnalyzer:
                 player_detections = self.player_detector.detect_players(frame)
                 frame_results['player_detections'] = player_detections
                 
-                # Get player ROIs for pose estimation
-                player_rois = self.player_detector.get_player_rois(frame, player_detections)
-                
                 # 2. Pose Estimation
-                if self.pose_estimator and player_rois:
-                    poses = self.pose_estimator.estimate_poses(frame, player_rois)
+                if self.pose_estimator and player_detections:
+                    poses = self.pose_estimator.estimate_poses(frame, player_detections)
                     frame_results['poses'] = poses
                     
                     # Analyze swing mechanics for each pose

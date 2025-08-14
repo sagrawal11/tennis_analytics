@@ -1,5 +1,5 @@
 """
-Pose Estimation Module using YOLOv11-pose
+Pose Estimation Module using YOLOv8-pose
 Analyzes player body positions and swing mechanics
 """
 
@@ -29,7 +29,7 @@ class Pose:
     player_id: Optional[int] = None
 
 class PoseEstimator:
-    """YOLOv11-pose-based pose estimation for tennis swing analysis"""
+    """YOLOv8-pose-based pose estimation for tennis swing analysis"""
     
     # COCO keypoint names for tennis analysis
     KEYPOINT_NAMES = [
@@ -60,13 +60,13 @@ class PoseEstimator:
         
         logger.info(f"Pose estimator initialized with model: {model_path}")
     
-    def estimate_poses(self, frame: np.ndarray, player_rois: List[np.ndarray]) -> List[Pose]:
+    def estimate_poses(self, frame: np.ndarray, player_detections: List[Dict[str, Any]]) -> List[Pose]:
         """
-        Estimate poses for detected players
+        Estimate poses for detected players using their bounding boxes
         
         Args:
             frame: Input frame
-            player_rois: List of player regions of interest
+            player_detections: List of player detections from player detector
             
         Returns:
             List of estimated poses
@@ -74,40 +74,59 @@ class PoseEstimator:
         poses = []
         
         try:
-            # Run pose estimation on the full frame
-            results = self.model(
-                frame,
-                conf=self.conf_threshold,
-                iou=self.iou_threshold,
-                max_det=self.max_det,
-                verbose=False
-            )
-            
-            for result in results:
-                if result.keypoints is not None:
-                    keypoints = result.keypoints.data[0].cpu().numpy()
-                    boxes = result.boxes.xyxy[0].cpu().numpy()
-                    conf = result.boxes.conf[0].cpu().numpy()
-                    
-                    # Convert keypoints to our format
-                    pose_keypoints = []
-                    for i, kp in enumerate(keypoints):
-                        if i < len(self.KEYPOINT_NAMES):
-                            keypoint = Keypoint(
-                                x=float(kp[0]),
-                                y=float(kp[1]),
-                                confidence=float(kp[2]),
-                                visible=float(kp[2]) > 0.1
-                            )
-                            pose_keypoints.append(keypoint)
-                    
-                    # Create pose object
-                    pose = Pose(
-                        keypoints=pose_keypoints,
-                        bbox=[int(x) for x in boxes],
-                        confidence=float(conf)
-                    )
-                    poses.append(pose)
+            for i, player_detection in enumerate(player_detections):
+                # Get player bounding box
+                x1, y1, x2, y2 = player_detection['bbox']
+                
+                # Extract player region with some padding
+                padding = 20
+                x1_pad = max(0, x1 - padding)
+                y1_pad = max(0, y1 - padding)
+                x2_pad = min(frame.shape[1], x2 + padding)
+                y2_pad = min(frame.shape[0], y2 + padding)
+                
+                player_roi = frame[y1_pad:y2_pad, x1_pad:x2_pad]
+                
+                if player_roi.size == 0:
+                    continue
+                
+                # Run pose estimation on the player ROI
+                results = self.model(
+                    player_roi,
+                    conf=self.conf_threshold,
+                    iou=self.iou_threshold,
+                    max_det=1,  # Only expect 1 person in the ROI
+                    verbose=False
+                )
+                
+                for result in results:
+                    if result.keypoints is not None and len(result.keypoints.data) > 0:
+                        keypoints = result.keypoints.data[0].cpu().numpy()
+                        
+                        # Convert keypoints back to original frame coordinates
+                        pose_keypoints = []
+                        for j, kp in enumerate(keypoints):
+                            if j < len(self.KEYPOINT_NAMES):
+                                # Adjust coordinates back to original frame
+                                x_orig = kp[0] + x1_pad
+                                y_orig = kp[1] + y1_pad
+                                
+                                keypoint = Keypoint(
+                                    x=float(x_orig),
+                                    y=float(y_orig),
+                                    confidence=float(kp[2]),
+                                    visible=float(kp[2]) > 0.1
+                                )
+                                pose_keypoints.append(keypoint)
+                        
+                        # Create pose object with original bounding box
+                        pose = Pose(
+                            keypoints=pose_keypoints,
+                            bbox=[x1, y1, x2, y2],
+                            confidence=player_detection['confidence'],
+                            player_id=i
+                        )
+                        poses.append(pose)
             
             logger.debug(f"Estimated poses for {len(poses)} players")
             return poses
