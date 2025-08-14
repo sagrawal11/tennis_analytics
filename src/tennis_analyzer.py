@@ -15,7 +15,7 @@ from datetime import datetime
 
 from player_detector import PlayerDetector
 from pose_estimator import PoseEstimator
-from ball_tracker import TrackNet, BallTrajectory
+from ball_tracker_pytorch import TrackNetPyTorch, BallTrajectory
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -96,16 +96,13 @@ class TennisAnalyzer:
             else:
                 logger.warning(f"Pose estimation model not found: {self.config['models']['yolo_pose']}")
             
-            # Initialize ball tracker (optional for now)
+            # Initialize ball tracker (PyTorch version)
             try:
-                if Path(self.config['models']['tracknet']).exists():
-                    self.ball_tracker = TrackNet(
-                        self.config['models']['tracknet'],
-                        self.config['tracknet']
-                    )
-                    logger.info("Ball tracker initialized successfully")
-                else:
-                    logger.warning(f"TrackNet model not found: {self.config['models']['tracknet']}")
+                self.ball_tracker = TrackNetPyTorch(
+                    self.config['models']['tracknet'],
+                    self.config['tracknet']
+                )
+                logger.info("PyTorch TrackNet ball tracker initialized successfully")
             except Exception as e:
                 logger.warning(f"TrackNet initialization failed: {e}")
                 logger.info("Continuing without ball tracking...")
@@ -260,10 +257,17 @@ class TennisAnalyzer:
                     frame_copy, frame_results['poses']
                 )
             
-            # Draw ball trajectory
+            # Draw ball position and trajectory
             if self.ball_tracker:
+                # Draw current ball position
+                if frame_results.get('ball_position'):
+                    x, y = frame_results['ball_position']['x'], frame_results['ball_position']['y']
+                    cv2.circle(frame_copy, (int(x), int(y)), 8, (0, 255, 0), -1)  # Green circle for current ball
+                    cv2.circle(frame_copy, (int(x), int(y)), 10, (255, 255, 255), 2)  # White outline
+                
+                # Draw ball trajectory
                 trajectory = self.ball_tracker.get_current_trajectory()
-                if trajectory:
+                if trajectory and len(trajectory.positions) > 1:
                     frame_copy = self.ball_tracker.draw_trajectory(frame_copy, trajectory)
             
             # Draw frame info

@@ -4,7 +4,7 @@
 models:
   yolo_player: "playersnball4.pt"  # Your custom YOLOv8 model for players and ball
   yolo_pose: "models/yolov8n-pose.pt"  # Pose estimation model
-  tracknet: "models/tracknet.h5"  # Ball tracking model
+  tracknet: "models/tracknet_trained.pt"  # Ball tracking model (trained)
 
 # Data Paths
 data:
@@ -26,12 +26,14 @@ yolo_pose:
   max_det: 4  # Max 4 players on court
   keypoints: 17  # COCO keypoints
 
-# TrackNet Ball Tracking Settings
+# TrackNet Ball Tracking Settings (PyTorch)
 tracknet:
-  input_size: 256
-  sequence_length: 3
+  input_height: 360
+  input_width: 640
   conf_threshold: 0.5
-  smooth_factor: 0.8
+  max_dist: 100
+  max_gap: 4
+  min_track_length: 5
 
 # Video Processing
 video:
