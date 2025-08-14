@@ -1,0 +1,61 @@
+# Tennis Analytics System Configuration
+
+# Model Paths
+models:
+  yolo_player: "models/yolov8n.pt"  # Player detection model
+  yolo_pose: "models/yolov11-pose.pt"  # Pose estimation model
+  tracknet: "models/tracknet.h5"  # Ball tracking model
+
+# Data Paths
+data:
+  raw_videos: "data/raw_videos/"
+  processed_frames: "data/processed_frames/"
+  annotations: "data/annotations/"
+  output: "data/output/"
+
+# YOLOv8 Player Detection Settings
+yolo_player:
+  conf_threshold: 0.5
+  iou_threshold: 0.45
+  max_det: 10
+
+# YOLOv11 Pose Estimation Settings
+yolo_pose:
+  conf_threshold: 0.3
+  iou_threshold: 0.45
+  max_det: 4  # Max 4 players on court
+  keypoints: 17  # COCO keypoints
+
+# TrackNet Ball Tracking Settings
+tracknet:
+  input_size: 256
+  sequence_length: 3
+  conf_threshold: 0.5
+  smooth_factor: 0.8
+
+# Video Processing
+video:
+  fps: 30
+  frame_skip: 1  # Process every nth frame
+  resize_width: 1920
+  resize_height: 1080
+
+# Analysis Settings
+analysis:
+  swing_detection:
+    min_confidence: 0.7
+    keypoint_threshold: 0.3
+  ball_tracking:
+    min_trajectory_length: 10
+    max_gap_frames: 5
+  court_detection:
+    enabled: true
+    homography_method: "RANSAC"
+
+# Output Settings
+output:
+  save_annotated_videos: true
+  save_pose_data: true
+  save_ball_trajectories: true
+  save_analytics: true
+  format: "json"
