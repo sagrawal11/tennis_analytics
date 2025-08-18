@@ -31,6 +31,8 @@ ball_tracking:
   min_confidence: 0.3  # Minimum confidence for ball detection
   max_distance: 50  # Maximum distance for combining detections
 
+
+
 # YOLOv11 Pose Estimation Settings
 yolo_pose:
   conf_threshold: 0.3
