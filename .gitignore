@@ -1,8 +1,9 @@
 # Virtual environments
-/yolo_env
+/yolo_env/
 /venv/
 /env/
 /.venv/
+/tennis_env/
 
 # Python
 __pycache__/

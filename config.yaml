@@ -2,7 +2,7 @@
 
 # Model Paths
 models:
-  yolo_player: "playersnball4.pt"  # Your custom YOLOv8 model for players and ball
+  yolo_player: "models/playersnball4.pt"  # Your custom YOLOv8 model for players and ball
   yolo_pose: "models/yolov8n-pose.pt"  # Pose estimation model
   tracknet: "exps/default/model_last.pt"  # Ball tracking model (trained)
 
