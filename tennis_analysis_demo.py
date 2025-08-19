@@ -17,6 +17,10 @@ import logging
 from collections import deque
 import sys
 
+# Configure logging first
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Add TennisCourtDetector to path for court detection
 sys.path.append('TennisCourtDetector')
 
@@ -30,10 +34,6 @@ try:
 except ImportError as e:
     COURT_DETECTION_AVAILABLE = False
     logger.warning(f"TennisCourtDetector imports failed: {e} - Court detection will be disabled")
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 class TennisAnalysisDemo:
     """Super advanced integrated tennis analysis system with court detection"""
@@ -654,13 +654,16 @@ class TennisAnalysisDemo:
         cv2.putText(frame, f"{conf:.2f}", (x + 15, y - 15), 
                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
         
-        # Draw velocity vector
-        if len(self.ball_velocities) > 0:
-            vx, vy = self.ball_velocities[-1]
-            if abs(vx) > 1 or abs(vy) > 1:  # Only draw if there's significant movement
-                end_x = int(x + vx * 2)  # Scale for visibility
-                end_y = int(y + vy * 2)
-                cv2.arrowedLine(frame, (x, y), (end_x, end_y), (0, 255, 0), 2)
+        # Draw subtle orange tail using recent ball positions
+        if len(self.ball_positions) >= 3:
+            # Get last 3 ball positions for tail
+            tail_positions = list(self.ball_positions)[-3:]
+            for i, pos in enumerate(tail_positions):
+                if pos and pos != (x, y):
+                    # Fade the tail (more recent = more opaque)
+                    alpha = 0.3 + (i * 0.2)  # 0.3, 0.5, 0.7
+                    tail_color = (0, int(165 * alpha), int(255 * alpha))
+                    cv2.circle(frame, pos, 4, tail_color, -1)
         
         return frame
     
