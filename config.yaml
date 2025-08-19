@@ -6,6 +6,7 @@ models:
   yolo_pose: "models/yolov8n-pose.pt"  # Pose estimation model
   tracknet: "pretrained_ball_detection.pt"  # Ball tracking model (trained)
   yolo_ball: "models/playersnball4.pt"  # YOLO model for ball detection
+  court_detector: "model_tennis_court_det.pt"  # Court detection model
 
 # Data Paths
 data:
@@ -57,6 +58,16 @@ video:
   frame_skip: 1  # Process every nth frame
   resize_width: 1920
   resize_height: 1080
+
+# Court Detection Settings
+court_detection:
+  input_width: 640
+  input_height: 360
+  low_threshold: 170
+  min_radius: 10
+  max_radius: 25
+  use_refine_kps: true
+  use_homography: true
 
 # Analysis Settings
 analysis:
