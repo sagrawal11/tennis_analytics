@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Tennis Analysis Demo Script
-Integrates player detection, pose estimation, and ball bounce detection
+Integrates player detection, pose estimation, and ball tracking
 for comprehensive tennis video analysis with real-time visualization.
 """
 
@@ -12,6 +12,7 @@ import time
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 import logging
+from collections import deque
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -30,6 +31,14 @@ class TennisAnalysisDemo:
         self.player_detector = None
         self.pose_estimator = None
         self.bounce_detector = None
+        self.tracknet_model = None
+        self.yolo_ball_model = None
+        
+        # Ball tracking state
+        self.ball_positions = deque(maxlen=30)  # Store last 30 ball positions
+        self.ball_velocities = deque(maxlen=10)  # Store last 10 velocities
+        self.tracknet_predictions = []
+        self.yolo_predictions = []
         
         # Analysis results
         self.analysis_results = {
@@ -37,6 +46,9 @@ class TennisAnalysisDemo:
             'players_detected': 0,
             'poses_estimated': 0,
             'bounces_detected': 0,
+            'tracknet_detections': 0,
+            'yolo_ball_detections': 0,
+            'combined_ball_detections': 0,
             'processing_times': []
         }
         
@@ -60,7 +72,9 @@ class TennisAnalysisDemo:
             'models': {
                 'yolo_player': 'models/playersnball4.pt',
                 'yolo_pose': 'models/yolov8n-pose.pt',
-                'bounce_detector': 'models/bounce_detector.cbm'
+                'bounce_detector': 'models/bounce_detector.cbm',
+                'tracknet': 'pretrained_ball_detection.pt',
+                'yolo_ball': 'models/playersnball4.pt'
             },
             'yolo_player': {
                 'conf_threshold': 0.5,
@@ -72,6 +86,25 @@ class TennisAnalysisDemo:
                 'iou_threshold': 0.45,
                 'max_det': 4,
                 'keypoints': 17
+            },
+            'tracknet': {
+                'input_height': 360,
+                'input_width': 640,
+                'conf_threshold': 0.1,
+                'max_dist': 100,
+                'max_gap': 4,
+                'min_track_length': 5
+            },
+            'yolo_ball': {
+                'conf_threshold': 0.1,
+                'iou_threshold': 0.45,
+                'max_det': 10
+            },
+            'ball_tracking': {
+                'max_velocity': 200,
+                'min_confidence': 0.4,
+                'smoothing_factor': 0.7,
+                'prediction_frames': 3
             },
             'video': {
                 'fps': 30,
@@ -118,6 +151,38 @@ class TennisAnalysisDemo:
             else:
                 logger.warning(f"Bounce detection model not found: {bounce_model_path}")
                 self.bounce_detector = None
+            
+            # Initialize TrackNet model for ball detection
+            tracknet_path = self.config['models'].get('tracknet')
+            if tracknet_path and Path(tracknet_path).exists():
+                try:
+                    self.tracknet_model = TrackNetDetector(
+                        tracknet_path,
+                        self.config['tracknet']
+                    )
+                    logger.info("TrackNet model initialized successfully")
+                except Exception as e:
+                    logger.warning(f"TrackNet model initialization failed: {e}")
+                    self.tracknet_model = None
+            else:
+                logger.warning(f"TrackNet model not found: {tracknet_path}")
+                self.tracknet_model = None
+            
+            # Initialize YOLO model for ball detection
+            yolo_ball_path = self.config['models'].get('yolo_ball')
+            if yolo_ball_path and Path(yolo_ball_path).exists():
+                try:
+                    self.yolo_ball_model = YOLOBallDetector(
+                        yolo_ball_path,
+                        self.config['yolo_ball']
+                    )
+                    logger.info("YOLO ball detector initialized successfully")
+                except Exception as e:
+                    logger.warning(f"YOLO ball model initialization failed: {e}")
+                    self.yolo_ball_model = None
+            else:
+                logger.warning(f"YOLO ball model not found: {yolo_ball_path}")
+                self.yolo_ball_model = None
                 
         except Exception as e:
             logger.error(f"Error initializing components: {e}")
@@ -228,7 +293,21 @@ class TennisAnalysisDemo:
             except Exception as e:
                 logger.error(f"Pose estimation error: {e}")
         
-        # 3. Ball Bounce Detection
+        # 3. Ball Detection and Tracking
+        ball_pred = self._detect_ball_in_frame(frame)
+        if ball_pred:
+            self.analysis_results['combined_ball_detections'] += 1
+            self.ball_positions.append(ball_pred)
+            
+            # Calculate velocity
+            if len(self.ball_positions) >= 2:
+                velocity = self._calculate_velocity(self.ball_positions[-2], ball_pred)
+                self.ball_velocities.append(velocity)
+            
+            # Draw ball tracking
+            annotated_frame = self._draw_ball_tracking(annotated_frame, ball_pred)
+        
+        # 4. Ball Bounce Detection
         if self.bounce_detector:
             try:
                 bounce_probability = self.bounce_detector.detect_bounce(frame)
@@ -247,6 +326,114 @@ class TennisAnalysisDemo:
         
         return annotated_frame
     
+    def _detect_ball_in_frame(self, frame: np.ndarray) -> Optional[Dict[str, Any]]:
+        """Detect ball in a single frame using both models"""
+        tracknet_pred = None
+        yolo_pred = None
+        
+        # 1. TrackNet prediction
+        if self.tracknet_model:
+            try:
+                tracknet_pred = self.tracknet_model.detect_ball(frame)
+                if tracknet_pred:
+                    self.analysis_results['tracknet_detections'] += 1
+                    self.tracknet_predictions.append(tracknet_pred)
+            except Exception as e:
+                logger.error(f"TrackNet error: {e}")
+        
+        # 2. YOLO ball prediction
+        if self.yolo_ball_model:
+            try:
+                yolo_pred = self.yolo_ball_model.detect_ball(frame)
+                if yolo_pred:
+                    self.analysis_results['yolo_ball_detections'] += 1
+                    self.yolo_predictions.append(yolo_pred)
+            except Exception as e:
+                logger.error(f"YOLO error: {e}")
+        
+        # 3. Combine predictions
+        return self._combine_predictions(tracknet_pred, yolo_pred)
+    
+    def _combine_predictions(self, tracknet_pred: Optional[Dict], yolo_pred: Optional[Dict]) -> Optional[Dict]:
+        """Combine predictions from both models"""
+        if not tracknet_pred and not yolo_pred:
+            return None
+        
+        if tracknet_pred and not yolo_pred:
+            return tracknet_pred
+        
+        if yolo_pred and not tracknet_pred:
+            return yolo_pred
+        
+        # Both predictions exist - combine them
+        tracknet_pos = tracknet_pred['position']
+        yolo_pos = yolo_pred['position']
+        tracknet_conf = tracknet_pred['confidence']
+        yolo_conf = yolo_pred['confidence']
+        
+        # Weighted average based on confidence
+        total_conf = tracknet_conf + yolo_conf
+        if total_conf > 0:
+            combined_x = (tracknet_pos[0] * tracknet_conf + yolo_pos[0] * yolo_conf) / total_conf
+            combined_y = (tracknet_pos[1] * tracknet_conf + yolo_pos[1] * yolo_conf) / total_conf
+            combined_conf = (tracknet_conf + yolo_conf) / 2
+            
+            # Apply velocity-based filtering
+            if len(self.ball_positions) > 0:
+                last_pos = self.ball_positions[-1]['position']
+                distance = np.sqrt((combined_x - last_pos[0])**2 + (combined_y - last_pos[1])**2)
+                max_velocity = self.config['ball_tracking']['max_velocity']
+                
+                if distance > max_velocity:
+                    # Use the prediction closer to last position
+                    tracknet_dist = np.sqrt((tracknet_pos[0] - last_pos[0])**2 + (tracknet_pos[1] - last_pos[1])**2)
+                    yolo_dist = np.sqrt((yolo_pos[0] - last_pos[0])**2 + (yolo_pos[1] - last_pos[1])**2)
+                    
+                    if tracknet_dist < yolo_dist:
+                        return tracknet_pred
+                    else:
+                        return yolo_pred
+            
+            return {
+                'position': [int(combined_x), int(combined_y)],
+                'confidence': combined_conf,
+                'source': 'combined'
+            }
+        
+        return None
+    
+    def _calculate_velocity(self, pos1: Dict, pos2: Dict) -> Tuple[float, float]:
+        """Calculate velocity between two positions"""
+        x1, y1 = pos1['position']
+        x2, y2 = pos2['position']
+        return (x2 - x1, y2 - y1)
+    
+    def _draw_ball_tracking(self, frame: np.ndarray, ball_pred: Dict) -> np.ndarray:
+        """Draw ball tracking visualization with single color (no trajectory line)"""
+        x, y = ball_pred['position']
+        conf = ball_pred['confidence']
+        
+        # Use single color for ball detection (orange)
+        color = (0, 165, 255)  # BGR format - orange
+        
+        # Draw ball position
+        cv2.circle(frame, (x, y), 8, color, -1)
+        cv2.circle(frame, (x, y), 12, color, 2)
+        
+        # Draw confidence
+        cv2.putText(frame, f"{conf:.2f}", (x + 15, y - 15), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+        
+        # Draw velocity vector
+        if len(self.ball_velocities) > 0:
+            vx, vy = self.ball_velocities[-1]
+            if abs(vx) > 1 or abs(vy) > 1:  # Only draw if there's significant movement
+                end_x = int(x + vx * 2)  # Scale for visibility
+                end_y = int(y + vy * 2)
+                cv2.arrowedLine(frame, (x, y), (end_x, end_y), (0, 255, 0), 2)
+        
+        return frame
+    
     def _add_frame_info(self, frame: np.ndarray):
         """Add frame information overlay"""
         # Frame counter
@@ -257,7 +444,10 @@ class TennisAnalysisDemo:
         stats_text = [
             f"Players: {self.analysis_results['players_detected']}",
             f"Poses: {self.analysis_results['poses_estimated']}",
-            f"Bounces: {self.analysis_results['bounces_detected']}"
+            f"Bounces: {self.analysis_results['bounces_detected']}",
+            f"TrackNet: {self.analysis_results['tracknet_detections']}",
+            f"YOLO Ball: {self.analysis_results['yolo_ball_detections']}",
+            f"Combined Ball: {self.analysis_results['combined_ball_detections']}"
         ]
         
         y_offset = 60
@@ -288,6 +478,9 @@ class TennisAnalysisDemo:
         print(f"Total players detected: {self.analysis_results['players_detected']}")
         print(f"Total poses estimated: {self.analysis_results['poses_estimated']}")
         print(f"Total bounces detected: {self.analysis_results['bounces_detected']}")
+        print(f"TrackNet ball detections: {self.analysis_results['tracknet_detections']}")
+        print(f"YOLO ball detections: {self.analysis_results['yolo_ball_detections']}")
+        print(f"Combined ball detections: {self.analysis_results['combined_ball_detections']}")
         
         if self.analysis_results['processing_times']:
             avg_time = np.mean(self.analysis_results['processing_times'])
@@ -555,6 +748,211 @@ class BounceDetector:
         except Exception as e:
             logger.error(f"Bounce detection error: {e}")
             return 0.0
+
+
+class TrackNetDetector:
+    """TrackNet-based ball detection"""
+    
+    def __init__(self, model_path: str, config: Dict[str, Any]):
+        self.config = config
+        self.device = 'cpu'
+        self.frame_buffer = deque(maxlen=3)  # TrackNet needs 3 consecutive frames
+        
+        try:
+            import torch
+            import sys
+            sys.path.append('TrackNet')
+            from model import BallTrackerNet
+            
+            # Initialize the TrackNet model
+            self.model = BallTrackerNet(out_channels=256).to(self.device)
+            
+            # Load the pretrained weights
+            checkpoint = torch.load(model_path, map_location=self.device)
+            
+            # Handle different checkpoint formats
+            if 'state_dict' in checkpoint:
+                state_dict = checkpoint['state_dict']
+            elif 'model_state_dict' in checkpoint:
+                state_dict = checkpoint['model_state_dict']
+            else:
+                state_dict = checkpoint
+            
+            self.model.load_state_dict(state_dict)
+            self.model.eval()
+            logger.info(f"TrackNet model loaded from {model_path}")
+            
+        except Exception as e:
+            logger.error(f"Error loading TrackNet model: {e}")
+            self.model = None
+    
+    def detect_ball(self, frame: np.ndarray) -> Optional[Dict[str, Any]]:
+        """Detect ball using TrackNet"""
+        if not self.model:
+            return None
+        
+        # Add frame to buffer
+        self.frame_buffer.append(frame)
+        
+        # Need at least 3 frames for TrackNet
+        if len(self.frame_buffer) < 3:
+            return None
+        
+        try:
+            import torch
+            import sys
+            sys.path.append('TrackNet')
+            from general import postprocess
+            
+            # Get the 3 consecutive frames
+            current_frame = self.frame_buffer[-1]
+            prev_frame = self.frame_buffer[-2]
+            prev_prev_frame = self.frame_buffer[-3]
+            
+            # Preprocess frames for TrackNet
+            processed_input = self._preprocess_frames(current_frame, prev_frame, prev_prev_frame)
+            
+            # Run inference
+            with torch.no_grad():
+                output = self.model(processed_input, testing=True)
+                output = output.argmax(dim=1).detach().cpu().numpy()
+            
+            # Postprocess to get ball position
+            ball_pos = self._postprocess_output(output[0], frame.shape)
+            
+            if ball_pos:
+                return {
+                    'position': ball_pos,
+                    'confidence': 0.8,  # TrackNet doesn't provide confidence, use default
+                    'source': 'tracknet'
+                }
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"TrackNet detection error: {e}")
+            return None
+    
+    def _preprocess_frames(self, frame1: np.ndarray, frame2: np.ndarray, frame3: np.ndarray):
+        """Preprocess 3 consecutive frames for TrackNet input"""
+        import torch
+        
+        # Resize frames to TrackNet input size
+        height, width = self.config['input_height'], self.config['input_width']
+        frame1_resized = cv2.resize(frame1, (width, height))
+        frame2_resized = cv2.resize(frame2, (width, height))
+        frame3_resized = cv2.resize(frame3, (width, height))
+        
+        # Convert to RGB and normalize
+        frame1_rgb = cv2.cvtColor(frame1_resized, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
+        frame2_rgb = cv2.cvtColor(frame2_resized, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
+        frame3_rgb = cv2.cvtColor(frame3_resized, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
+        
+        # Concatenate frames along channel dimension (9 channels total)
+        combined = np.concatenate((frame1_rgb, frame2_rgb, frame3_rgb), axis=2)
+        
+        # Convert to tensor format (C, H, W) and add batch dimension
+        tensor = torch.from_numpy(combined).permute(2, 0, 1).unsqueeze(0).float()
+        return tensor
+    
+    def _postprocess_output(self, output: np.ndarray, original_shape: Tuple[int, int, int]) -> Optional[List[int]]:
+        """Postprocess TrackNet output to get ball position"""
+        import sys
+        sys.path.append('TrackNet')
+        from general import postprocess
+        
+        try:
+            # Use the original postprocess function
+            x, y = postprocess(output)
+            
+            if x is not None and y is not None:
+                # Convert to original image coordinates
+                orig_h, orig_w = original_shape[:2]
+                
+                # The postprocess function returns coordinates scaled by 2, but we need to scale to original image size
+                # TrackNet was trained on 360x640, but postprocess scales by 2, so effective output is 720x1280
+                scale_h = orig_h / 720  # 360 * 2 = 720
+                scale_w = orig_w / 1280  # 640 * 2 = 1280
+                
+                x_scaled = int(x * scale_w)
+                y_scaled = int(y * scale_h)
+                
+                # Ensure coordinates are within bounds
+                x_scaled = max(0, min(x_scaled, orig_w - 1))
+                y_scaled = max(0, min(y_scaled, orig_h - 1))
+                
+                logger.info(f"TrackNet ball detection: pos=({x_scaled}, {y_scaled})")
+                return [x_scaled, y_scaled]
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Postprocess error: {e}")
+            return None
+
+
+class YOLOBallDetector:
+    """YOLOv8-based ball detection"""
+    
+    def __init__(self, model_path: str, config: Dict[str, Any]):
+        self.config = config
+        try:
+            from ultralytics import YOLO
+            self.model = YOLO(model_path)
+            logger.info(f"YOLO ball detector initialized with {model_path}")
+        except ImportError:
+            logger.error("Ultralytics not installed. Install with: pip install ultralytics")
+            self.model = None
+        except Exception as e:
+            logger.error(f"Error loading YOLO model: {e}")
+            self.model = None
+    
+    def detect_ball(self, frame: np.ndarray) -> Optional[Dict[str, Any]]:
+        """Detect ball using YOLO"""
+        if not self.model:
+            return None
+        
+        try:
+            results = self.model(
+                frame,
+                conf=self.config.get('conf_threshold', 0.1),
+                iou=self.config.get('iou_threshold', 0.45),
+                max_det=self.config.get('max_det', 10),
+                verbose=False
+            )
+            
+            # Debug: Log all detections
+            for result in results:
+                boxes = result.boxes
+                if boxes is not None:
+                    logger.debug(f"YOLO found {len(boxes)} detections")
+                    for box in boxes:
+                        cls = int(box.cls[0].cpu().numpy())
+                        conf = float(box.conf[0].cpu().numpy())
+                        logger.debug(f"YOLO detection: class={cls}, conf={conf:.3f}")
+                        
+                        # Look for ball class (class 0) - but also try class 1 if 0 doesn't work
+                        if (cls == 0 or cls == 1) and conf > self.config.get('conf_threshold', 0.1):
+                            x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
+                            center_x = int((x1 + x2) / 2)
+                            center_y = int((y1 + y2) / 2)
+                            
+                            # Calculate bounding box area to filter out large detections (likely players)
+                            bbox_area = (x2 - x1) * (y2 - y1)
+                            if bbox_area < 5000:  # Only small detections (likely balls)
+                                logger.info(f"YOLO ball detection: class={cls}, conf={conf:.3f}, pos=({center_x}, {center_y}), area={bbox_area}")
+                                return {
+                                    'position': [center_x, center_y],
+                                    'confidence': conf,
+                                    'source': 'yolo',
+                                    'bbox': [int(x1), int(y1), int(x2), int(y2)]
+                                }
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"YOLO detection error: {e}")
+            return None
 
 
 def main():
