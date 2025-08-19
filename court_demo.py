@@ -92,6 +92,10 @@ class CourtDetector:
         self.history_length = 30  # Number of frames to average over
         self.min_confidence_threshold = 0.3  # Minimum confidence to consider a detection
         
+        # Best position tracking - preserve the best predictions we've ever seen
+        self.best_positions = {}  # Store the BEST individual prediction ever seen for each keypoint
+        self.best_scores = {}  # Store the quality scores for the best positions
+        
         # Analysis results
         self.analysis_results = {
             'total_frames': 0,
@@ -348,6 +352,9 @@ class CourtDetector:
             combined_scores = self._combine_quality_scores(colinearity_scores, parallelism_scores)
             logger.info(f"Combined quality scores: {combined_scores}")
             
+            # Update best positions with new predictions if they're better
+            self._update_best_positions(points, combined_scores)
+            
             # Store for use in drawing
             self.last_colinearity_scores = combined_scores
             
@@ -356,6 +363,18 @@ class CourtDetector:
             
             # Update best keypoints based on quality scores (soft-lock system)
             self._update_best_keypoints(points, combined_scores)
+            
+            # Apply temporal smoothing to populate keypoint history
+            # Convert points to format expected by temporal smoothing (with confidence scores)
+            # Quality scores are lower=better, so convert to confidence scores (higher=better)
+            points_with_confidence = []
+            for i, (x, y) in enumerate(points):
+                quality_score = combined_scores.get(i, 1.0)
+                # Convert quality score (0=perfect, 1=worst) to confidence (1=perfect, 0=worst)
+                confidence = max(0.0, 1.0 - quality_score)
+                points_with_confidence.append((x, y, confidence))
+            
+            self._apply_temporal_smoothing(points_with_confidence)
             
             # Apply best keypoints and temporal smoothing for others
             smoothed_points = self._apply_best_keypoints(points, combined_scores)
@@ -547,7 +566,7 @@ class CourtDetector:
             # For lines with 3+ points, we can calculate colinearity
             if len(valid_points) >= 3:
                 
-                                # Calculate colinearity for each point in this line
+                # Calculate colinearity for each point in this line
                 for i, (point_idx, (x, y)) in enumerate(valid_points):
                     # Find other points on the same line to test colinearity
                     other_points = [(other_idx, (ox, oy)) for j, (other_idx, (ox, oy)) in enumerate(valid_points) if i != j]
@@ -592,7 +611,7 @@ class CourtDetector:
                         avg_colinearity = np.mean(colinearity_measures)
                         
                         # Update score if this line gives a better result
-                        if point_idx not in colinearity_scores or avg_colinearity > colinearity_scores[point_idx]:
+                        if point_idx not in colinearity_scores or avg_colinearity < colinearity_scores[point_idx]:
                             colinearity_scores[point_idx] = avg_colinearity
                             logger.info(f"Point {point_idx} on {line_name}: NEW BEST colinearity = {avg_colinearity:.3f} (from {len(colinearity_measures)} combinations)")
                         else:
@@ -611,7 +630,32 @@ class CourtDetector:
             if i not in colinearity_scores:
                 colinearity_scores[i] = 1.0  # Default score (high error = bad)
         
+
+        
         return colinearity_scores
+    
+    def _update_best_positions(self, points: List[Tuple], combined_scores: Dict[int, float]):
+        """Update best positions with new predictions if they're better"""
+        for point_idx, (x, y) in enumerate(points):
+            if x is not None and y is not None:
+                current_score = combined_scores.get(point_idx, 1.0)
+                
+                # Check if this is the best prediction we've ever seen for this keypoint
+                if (point_idx not in self.best_scores or 
+                    current_score < self.best_scores[point_idx]):
+                    
+                    # This is a new best prediction!
+                    self.best_positions[point_idx] = (x, y)
+                    self.best_scores[point_idx] = current_score
+                    
+                    logger.info(f"🏆 NEW BEST POSITION for point {point_idx}: ({x}, {y}) with score {current_score:.3f}")
+                    
+                    # If this score is good enough, immediately lock it in
+                    if current_score <= self.quality_threshold:
+                        self.best_keypoints[point_idx] = (x, y, current_score)
+                        logger.info(f"🔒 IMMEDIATELY LOCKED point {point_idx} at ({x}, {y}) with score {current_score:.3f}")
+                
+
     
     def _assess_parallelism_quality(self, points: List[Tuple]) -> Dict[int, float]:
         """Assess keypoint quality based on parallelism with other lines"""
@@ -681,6 +725,8 @@ class CourtDetector:
                 final_parallelism_scores[i] = np.mean(parallelism_scores[i])
             else:
                 final_parallelism_scores[i] = 1.0  # Default score (high error = bad)
+        
+
         
         return final_parallelism_scores
     
@@ -993,7 +1039,19 @@ class CourtDetector:
                     self.keypoint_history[kps_num].pop(0)
                     self.keypoint_confidence[kps_num].pop(0)
             
-            # Calculate smoothed position
+
+            
+            # Priority 1: Use best position if available and good enough
+            if kps_num in self.best_positions and kps_num in self.best_scores:
+                best_score = self.best_scores[kps_num]
+                if best_score <= self.quality_threshold:
+                    # Use the best position we've ever seen
+                    best_x, best_y = self.best_positions[kps_num]
+                    smoothed_points.append((best_x, best_y))
+                    logger.debug(f"Using BEST POSITION for keypoint {kps_num}: ({best_x}, {best_y}) with score {best_score:.3f}")
+                    continue
+            
+            # Priority 2: Calculate smoothed position if we have history
             if len(self.keypoint_history[kps_num]) > 0:
                 # Weighted average based on confidence
                 total_weight = sum(self.keypoint_confidence[kps_num])
