@@ -7,6 +7,7 @@ models:
   tracknet: "pretrained_ball_detection.pt"  # Ball tracking model (trained)
   yolo_ball: "models/playersnball4.pt"  # YOLO model for ball detection
   court_detector: "model_tennis_court_det.pt"  # Court detection model
+  bounce_detector: "models/bounce_detector.cbm"  # Bounce detection model
 
 # Data Paths
 data:
@@ -34,9 +35,7 @@ ball_tracking:
   smoothing_factor: 0.7  # Smoothing factor for ball position
   prediction_frames: 3  # Number of frames to predict ahead
 
-
-
-# YOLOv11 Pose Estimation Settings
+# YOLOv8 Pose Estimation Settings
 yolo_pose:
   conf_threshold: 0.3
   iou_threshold: 0.45
@@ -52,13 +51,6 @@ tracknet:
   max_gap: 4
   min_track_length: 5
 
-# Video Processing
-video:
-  fps: 30
-  frame_skip: 1  # Process every nth frame
-  resize_width: 1920
-  resize_height: 1080
-
 # Court Detection Settings
 court_detection:
   input_width: 640
@@ -68,6 +60,13 @@ court_detection:
   max_radius: 25
   use_refine_kps: true
   use_homography: true
+
+# Video Processing
+video:
+  fps: 30
+  frame_skip: 1  # Process every nth frame
+  resize_width: 1920
+  resize_height: 1080
 
 # Analysis Settings
 analysis:
