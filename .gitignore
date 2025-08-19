@@ -98,9 +98,8 @@ Thumbs.db
 *.backup
 
 # TrackNet training files
-tracknet_original/
-trackNet_repository/
 TennisCourtDetector/
+TrackNet/
 exps/
 datasets/
 *.tfevents.*
@@ -119,4 +118,4 @@ tensorboard_logs/
 ehthumbs.db
 Thumbs.db
 TennisCourtDetector
-trackNet_repository
+TrackNet

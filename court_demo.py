@@ -56,15 +56,15 @@ class CourtDetector:
             'bottom_service': [10, 13, 11],       # Bottom service line + net
             
             # Vertical lines (left to right)
-            'left_vertical': [5, 8, 12, 4],      # Left side lines (including left ends of service lines)
-            'right_vertical': [6, 9, 11, 7],     # Right side lines (including right ends of service lines)
+            'left_vertical': [5, 10, 8, 4],      # Left side lines
+            'right_vertical': [6, 9, 11, 7],     # Right side lines
         }
         
         # Parallel line pairs for additional validation
         self.parallel_line_pairs = [
             # Endlines should be parallel to service lines
             ('endline_top', [1, 3], 'service_line_right', [6, 9, 11, 7]),      # Top endline || right service line
-            ('endline_bottom', [2, 0], 'service_line_left', [5, 8, 12, 4]),     # Bottom endline || left service line (corrected)
+            ('endline_bottom', [2, 0], 'service_line_left', [5, 10, 8, 4]),     # Bottom endline || left service line
             
             # All horizontal lines should be parallel to each other
             ('baseline_top', [0, 1], 'baseline_bottom', [2, 3]),                # Top baseline || bottom baseline
@@ -74,12 +74,9 @@ class CourtDetector:
             ('baseline_bottom', [2, 3], 'bottom_service', [10, 11]),            # Bottom baseline || bottom service line
             ('top_service', [8, 9], 'bottom_service', [10, 11]),                # Top service line || bottom service line
             
-            # Service line endpoints should be parallel to each other
-            ('service_left', [8, 10], 'service_right', [9, 11]),                # Left service endpoints || right service endpoints
-            
             # All vertical lines should be parallel to each other
-            ('left_vertical', [5, 8, 12, 4], 'right_vertical', [6, 9, 11, 7]), # Left side || right side (corrected)
-            ('left_vertical', [5, 8, 12, 4], 'center_service', [8, 12, 10]),   # Left side || center service (corrected)
+            ('left_vertical', [5, 10, 8, 4], 'right_vertical', [6, 9, 11, 7]), # Left side || right side
+            ('left_vertical', [5, 10, 8, 4], 'center_service', [8, 12, 10]),   # Left side || center service
             ('right_vertical', [6, 9, 11, 7], 'center_service', [8, 12, 10]),  # Right side || center service
         ]
         
@@ -625,11 +622,7 @@ class CourtDetector:
             valid_line1 = [(idx, points[idx]) for idx in line1_points if idx < len(points) and points[idx][0] is not None and points[idx][1] is not None]
             valid_line2 = [(idx, points[idx]) for idx in line2_points if idx < len(points) and points[idx][0] is not None and points[idx][1] is not None]
             
-            # Debug: Check if point 10 is in any parallelism checks
-            if 10 in line1_points or 10 in line2_points:
-                logger.info(f"Point 10 found in parallelism check: {line_name} ({line1_points}) || {parallel_line_name} ({line2_points})")
-                logger.info(f"  Valid line1: {valid_line1}")
-                logger.info(f"  Valid line2: {valid_line2}")
+
             
             if len(valid_line1) < 2 or len(valid_line2) < 2:
                 continue
@@ -654,12 +647,12 @@ class CourtDetector:
                             line2_length = np.linalg.norm(line2_vector)
                             if line2_length > 0:
                                 line2_unit = line2_vector / line2_length
-                                # Dot product gives cosine of angle between vectors
-                                # Parallel lines have dot product close to ±1
-                                # We want to minimize the angle difference, so convert to error score
-                                dot_product = abs(np.dot(line1_unit, line2_unit))
-                                # Convert to error: 0 = perfect parallel, 1 = perpendicular
-                                parallelism_error = 1.0 - dot_product
+                                # Cross product gives area of parallelogram formed by vectors
+                                # Parallel lines have cross product = 0
+                                # We want to minimize this to 0
+                                cross_product = np.cross(line1_unit, line2_unit)
+                                # Convert to error: 0 = perfect parallel, higher = less parallel
+                                parallelism_error = np.linalg.norm(cross_product)
                                 line2_vectors.append(parallelism_error)
                     
                     if line2_vectors:
@@ -1038,73 +1031,68 @@ class CourtDetector:
         return smoothed_points
     
     def _draw_court_lines(self, frame: np.ndarray, points: List[Tuple]):
-        """Draw court lines connecting keypoints"""
+        """Draw court lines connecting keypoints based on colinearity groups"""
         logger.info("=== Drawing court lines ===")
         logger.info(f"Received {len(points)} points for line drawing")
         
         try:
-            # Define court line connections based on keypoint indices
-            # These are the standard tennis court line connections
-            court_lines = [
-                (0, 1),   # Baseline top
-                (2, 3),   # Baseline bottom  
-                (4, 5),   # Left inner line
-                (6, 7),   # Right inner line
-                (8, 9),   # Top inner line
-                (10, 11), # Bottom inner line
-                (12, 13)  # Middle line
+            # Define court line connections that match our colinearity groups
+            # Horizontal lines (left to right)
+            horizontal_lines = [
+                (0, 4, 6, 1),      # Top endline: 0 → 4 → 6 → 1
+                (2, 5, 7, 3),      # Bottom endline: 2 → 5 → 7 → 3
+                (8, 12, 9),        # Top service line: 8 → 12 → 9
+                (10, 13, 11),      # Bottom service line: 10 → 13 → 11
             ]
             
-            logger.info(f"Attempting to draw {len(court_lines)} court lines")
+            # Vertical lines (top to bottom)
+            vertical_lines = [
+                (0, 2),             # Left sideline: 0 → 2
+                (1, 3),             # Right sideline: 1 → 3
+                (5, 10, 8, 4),     # Left doubles alley: 5 → 10 → 8 → 4
+                (6, 9, 11, 7),     # Right doubles alley: 6 → 9 → 11 → 7
+            ]
             
-            # Draw lines
-            for start_idx, end_idx in court_lines:
-                logger.info(f"Processing line {start_idx}-{end_idx}")
-                
-                if (start_idx < len(points) and end_idx < len(points) and
-                    points[start_idx][0] is not None and points[start_idx][1] is not None and
-                    points[end_idx][0] is not None and points[end_idx][1] is not None):
-                    
-                    start_point = (int(points[start_idx][0]), int(points[start_idx][1]))
-                    end_point = (int(points[end_idx][0]), int(points[end_idx][1]))
-                    
-                    # Draw thicker, more visible lines
-                    cv2.line(frame, start_point, end_point, (255, 0, 0), 3)  # Blue lines, thickness 3
-                    logger.info(f"Drew court line from {start_point} to {end_point}")
-                else:
-                    logger.info(f"Could not draw line {start_idx}-{end_idx}: points not available")
-                    if start_idx < len(points):
-                        logger.info(f"  Start point {start_idx}: {points[start_idx]}")
-                    if end_idx < len(points):
-                        logger.info(f"  End point {end_idx}: {points[end_idx]}")
+            logger.info(f"Attempting to draw {len(horizontal_lines)} horizontal lines and {len(vertical_lines)} vertical lines")
             
-            # Also draw some additional court structure lines for better visibility
-            # Draw service boxes
-            logger.info("Attempting to draw service box lines...")
-            if (len(points) >= 14 and 
-                points[8][0] is not None and points[8][1] is not None and
-                points[9][0] is not None and points[9][1] is not None and
-                points[10][0] is not None and points[10][1] is not None and
-                points[11][0] is not None and points[11][1] is not None):
-                
-                # Service box lines
-                cv2.line(frame, 
-                         (int(points[8][0]), int(points[8][1])), 
-                         (int(points[10][0]), int(points[10][1])), 
-                         (0, 255, 255), 2)  # Yellow lines
-                cv2.line(frame, 
-                         (int(points[9][0]), int(points[9][1])), 
-                         (int(points[11][0]), int(points[11][1])), 
-                         (0, 255, 255), 2)  # Yellow lines
-                logger.info("Drew service box lines")
-            else:
-                logger.info("Could not draw service box lines - missing required keypoints")
-        
+            # Draw horizontal lines (blue)
+            for line_indices in horizontal_lines:
+                self._draw_continuous_line(frame, points, line_indices, (255, 0, 0), 3, "horizontal")
+            
+            # Draw vertical lines (green)
+            for line_indices in vertical_lines:
+                self._draw_continuous_line(frame, points, line_indices, (0, 255, 0), 3, "vertical")
+            
         except Exception as e:
             logger.error(f"Error drawing court lines: {e}")
             logger.error(f"Points: {points}")
             import traceback
             logger.error(f"Traceback: {traceback.format_exc()}")
+    
+    def _draw_continuous_line(self, frame: np.ndarray, points: List[Tuple], line_indices: List[int], 
+                             color: Tuple[int, int, int], thickness: int, line_type: str):
+        """Draw a continuous line through multiple points"""
+        valid_points = []
+        
+        # Collect valid points for this line
+        for idx in line_indices:
+            if (idx < len(points) and 
+                points[idx][0] is not None and points[idx][1] is not None):
+                valid_points.append((int(points[idx][0]), int(points[idx][1])))
+        
+        if len(valid_points) < 2:
+            logger.info(f"Could not draw {line_type} line {line_indices}: not enough valid points")
+            return
+        
+        # Draw line segments connecting all points
+        for i in range(len(valid_points) - 1):
+            start_point = valid_points[i]
+            end_point = valid_points[i + 1]
+            
+            cv2.line(frame, start_point, end_point, color, thickness)
+            logger.info(f"Drew {line_type} line segment from {start_point} to {end_point}")
+        
+        logger.info(f"Completed {line_type} line {line_indices} with {len(valid_points)} points")
     
     def _add_frame_info(self, frame: np.ndarray, keypoints_detected: int):
         """Add frame information overlay"""
