@@ -1270,6 +1270,13 @@ class PoseEstimator:
             logger.info(f"Pose estimator initialized with {model_path}")
             self.scales = [1.0, 1.5, 2.0]  # Original, 1.5x, 2x zoom
             self.scale_weights = [0.4, 0.35, 0.25]  # Weight for each scale
+            
+            # Temporal smoothing parameters
+            self.pose_history = {}  # player_id -> deque of recent poses
+            self.history_length = 5  # Number of frames to remember
+            self.max_movement_threshold = 100  # Max pixels a keypoint can move between frames
+            self.temporal_weight = 0.7  # How much to weight temporal consistency vs current detection
+            
         except Exception as e:
             logger.error(f"Failed to initialize pose estimator: {e}")
             self.model = None
@@ -1289,8 +1296,8 @@ class PoseEstimator:
                 
                 x1, y1, x2, y2 = player['bbox']
                 
-                # Extract player region with padding
-                padding = 50  # Increased padding for better context
+                # Extract player region with moderate padding for limb extension
+                padding = 60  # Moderate padding to allow for arm/leg extension during swings
                 x1_pad = max(0, x1 - padding)
                 y1_pad = max(0, y1 - padding)
                 x2_pad = min(frame.shape[1], x2 + padding)
@@ -1307,7 +1314,7 @@ class PoseEstimator:
                 for scale_idx, scale in enumerate(self.scales):
                     # Resize player ROI for this scale
                     if scale != 1.0:
-                        roi_height, roi_width = player_roi.shape[:2]
+                        roi_height, roi_width = player_roi.shape[:2]  # Get height and width (first 2 dimensions)
                         new_height, new_width = int(roi_height * scale), int(roi_width * scale)
                         scaled_roi = cv2.resize(player_roi, (new_width, new_height))
                     else:
@@ -1320,6 +1327,7 @@ class PoseEstimator:
                     for result in results:
                         if result.keypoints is not None:
                             keypoints = result.keypoints.data[0].cpu().numpy()
+                            confidence = result.keypoints.conf[0].cpu().numpy() if result.keypoints.conf is not None else np.ones(len(keypoints))
                             
                             # Scale keypoints back to original ROI size
                             if scale != 1.0:
@@ -1330,12 +1338,28 @@ class PoseEstimator:
                             keypoints[:, 0] += x1_pad  # Add x offset
                             keypoints[:, 1] += y1_pad  # Add y offset
                             
+                            # Apply bounding box confidence weighting
+                            weighted_confidence = self._apply_bbox_confidence_weighting(
+                                keypoints, confidence, [x1, y1, x2, y2]
+                            )
+                            
+                            # Apply temporal consistency weighting
+                            temporal_scores = self._calculate_temporal_consistency(
+                                player_idx, keypoints, [x1, y1, x2, y2]
+                            )
+                            
+                            # Combine spatial and temporal confidence
+                            final_confidence = (
+                                weighted_confidence * (1 - self.temporal_weight) +
+                                temporal_scores * self.temporal_weight
+                            )
+                            
                             # Create pose data with scale information
                             pose_data = {
                                 'keypoints': keypoints.tolist(),
                                 'scale': scale,
                                 'scale_weight': self.scale_weights[scale_idx],
-                                'confidence': result.keypoints.conf[0].cpu().numpy().tolist() if result.keypoints.conf is not None else [],
+                                'confidence': final_confidence.tolist(),
                                 'player_idx': player_idx,
                                 'bbox': [x1, y1, x2, y2]
                             }
@@ -1347,20 +1371,90 @@ class PoseEstimator:
                         # Multiple scales detected - combine them
                         logger.debug(f"🔍 Player {player_idx}: Combining {len(player_poses)} poses from different scales")
                         combined_pose = self._combine_player_poses(player_poses)
+                        
+                        # Validate that hips are within bounding box
+                        if not self._validate_pose_hips(combined_pose, [x1, y1, x2, y2]):
+                            logger.warning(f"⚠️  Player {player_idx}: Invalid pose detected, attempting redraw")
+                            redrawn_pose = self._attempt_pose_redraw(frame, player, [x1, y1, x2, y2], player_idx)
+                            if redrawn_pose:
+                                combined_pose = redrawn_pose
+                                logger.info(f"✅ Player {player_idx}: Pose redraw successful")
+                            else:
+                                logger.warning(f"❌ Player {player_idx}: Pose redraw failed, using original pose")
+                        
+                        logger.debug(f"🔍 Player {player_idx}: Final pose added to all_poses")
                         all_poses.append(combined_pose)
+                        
+                        # Update pose history for temporal smoothing
+                        self._update_pose_history(player_idx, combined_pose)
                     else:
                         # Only one scale detected - use as is
                         logger.debug(f"🔍 Player {player_idx}: Using single pose from scale {player_poses[0]['scale']}")
-                        all_poses.append(player_poses[0])
+                        single_pose = player_poses[0]
+                        
+                        # Validate that hips are within bounding box
+                        if not self._validate_pose_hips(single_pose, [x1, y1, x2, y2]):
+                            logger.warning(f"⚠️  Player {player_idx}: Invalid pose detected, attempting redraw")
+                            redrawn_pose = self._attempt_pose_redraw(frame, player, [x1, y1, x2, y2], player_idx)
+                            if redrawn_pose:
+                                single_pose = redrawn_pose
+                                logger.info(f"✅ Player {player_idx}: Pose redraw successful")
+                            else:
+                                logger.warning(f"❌ Player {player_idx}: Pose redraw failed, using original pose")
+                        
+                        logger.debug(f"🔍 Player {player_idx}: Final pose added to all_poses")
+                        all_poses.append(single_pose)
+                        
+                        # Update pose history for temporal smoothing
+                        self._update_pose_history(player_idx, single_pose)
                 else:
                     logger.debug(f"⚠️  Player {player_idx}: No poses detected at any scale")
             
             logger.debug(f"🔍 Total poses detected for all players: {len(all_poses)}")
+            logger.debug(f"🔍 Player indices in all_poses: {[pose.get('player_idx', 'unknown') for pose in all_poses]}")
             return all_poses
             
         except Exception as e:
             logger.error(f"Error in multi-scale pose estimation: {e}")
             return []
+    
+    def _apply_bbox_confidence_weighting(self, keypoints: np.ndarray, confidence: np.ndarray, bbox: List[int]) -> np.ndarray:
+        """Apply confidence weighting based on distance from player bounding box"""
+        x1, y1, x2, y2 = bbox
+        weighted_confidence = confidence.copy()
+        
+        for i, keypoint in enumerate(keypoints):
+            kp_x, kp_y = keypoint[0], keypoint[1]  # Extract x, y coordinates
+            if kp_x == 0 and kp_y == 0:  # Skip invalid keypoints
+                continue
+                
+            # Check if keypoint is inside the bounding box
+            if x1 <= kp_x <= x2 and y1 <= kp_y <= y2:
+                # Inside box - keep full confidence
+                continue
+            else:
+                # Outside box - calculate distance penalty
+                # Find closest point on bbox boundary
+                closest_x = max(x1, min(x2, kp_x))
+                closest_y = max(y1, min(y2, kp_y))
+                
+                distance = np.sqrt((kp_x - closest_x)**2 + (kp_y - closest_y)**2)
+                
+                # Apply distance penalty: confidence decreases with distance
+                # More forgiving for close distances, harsh for far distances
+                if distance <= 30:
+                    # Very close to box - minimal penalty
+                    penalty_factor = 0.9
+                elif distance <= 60:
+                    # Moderate distance - gradual penalty
+                    penalty_factor = max(0.5, 1.0 - (distance - 30) / 60)
+                else:
+                    # Far from box - heavy penalty
+                    penalty_factor = max(0.1, 0.5 - (distance - 60) / 100)
+                
+                weighted_confidence[i] *= penalty_factor
+        
+        return weighted_confidence
     
     def _combine_player_poses(self, poses: List[Dict]) -> Dict:
         """Combine poses from different scales for the same player"""
@@ -1440,6 +1534,167 @@ class PoseEstimator:
                 pt1 = (int(keypoints[connection[0]][0]), int(keypoints[connection[0]][1]))
                 pt2 = (int(keypoints[connection[1]][0]), int(keypoints[connection[1]][1]))
                 cv2.line(frame, pt1, pt2, (0, 255, 0), 2)
+    
+    def _calculate_temporal_consistency(self, player_id: int, current_keypoints: np.ndarray, current_bbox: List[int]) -> np.ndarray:
+        """Calculate temporal consistency scores for each keypoint based on movement history"""
+        if player_id not in self.pose_history or len(self.pose_history[player_id]) < 2:
+            # Not enough history - return neutral scores
+            return np.ones(len(current_keypoints))
+        
+        temporal_scores = np.ones(len(current_keypoints))
+        recent_poses = list(self.pose_history[player_id])[-3:]  # Last 3 poses
+        
+        for i, keypoint in enumerate(current_keypoints):
+            kp_x, kp_y = keypoint[0], keypoint[1]
+            if kp_x == 0 and kp_y == 0:  # Skip invalid keypoints
+                continue
+            
+            # Predict where this keypoint should be based on recent movement
+            predicted_x, predicted_y = self._predict_keypoint_position(i, recent_poses)
+            
+            if predicted_x is not None and predicted_y is not None:
+                # Calculate distance from predicted position
+                distance = np.sqrt((kp_x - predicted_x)**2 + (kp_y - predicted_y)**2)
+                
+                # Calculate temporal consistency score
+                if distance <= self.max_movement_threshold:
+                    # Movement is within reasonable bounds
+                    temporal_scores[i] = max(0.3, 1.0 - (distance / self.max_movement_threshold))
+                else:
+                    # Movement is too large - likely a detection error
+                    temporal_scores[i] = 0.1
+                    
+                logger.debug(f"🔍 Keypoint {i}: predicted=({predicted_x:.1f}, {predicted_y:.1f}), "
+                           f"actual=({kp_x:.1f}, {kp_y:.1f}), distance={distance:.1f}, "
+                           f"temporal_score={temporal_scores[i]:.2f}")
+        
+        return temporal_scores
+    
+    def _predict_keypoint_position(self, keypoint_idx: int, recent_poses: List[Dict]) -> Tuple[Optional[float], Optional[float]]:
+        """Predict where a keypoint should be based on recent movement history"""
+        if len(recent_poses) < 2:
+            return None, None
+        
+        # Extract this keypoint's positions from recent poses
+        positions = []
+        for pose in recent_poses:
+            if (keypoint_idx < len(pose['keypoints']) and 
+                pose['keypoints'][keypoint_idx][0] != 0 and 
+                pose['keypoints'][keypoint_idx][1] != 0):
+                positions.append(pose['keypoints'][keypoint_idx][:2])
+        
+        if len(positions) < 2:
+            return None, None
+        
+        # Calculate velocity (pixels per frame)
+        velocities = []
+        for j in range(1, len(positions)):
+            dx = positions[j][0] - positions[j-1][0]
+            dy = positions[j][1] - positions[j-1][1]
+            velocities.append([dx, dy])
+        
+        if not velocities:
+            return None, None
+        
+        # Average velocity over recent frames
+        avg_velocity = np.mean(velocities, axis=0)
+        
+        # Predict next position based on last known position and average velocity
+        last_pos = positions[-1]
+        predicted_x = last_pos[0] + avg_velocity[0]
+        predicted_y = last_pos[1] + avg_velocity[1]
+        
+        return predicted_x, predicted_y
+    
+    def _update_pose_history(self, player_id: int, pose: Dict):
+        """Update pose history for temporal smoothing"""
+        if player_id not in self.pose_history:
+            from collections import deque
+            self.pose_history[player_id] = deque(maxlen=self.history_length)
+        
+        # Store the pose in history
+        self.pose_history[player_id].append(pose)
+        logger.debug(f"🔍 Updated pose history for player {player_id}: {len(self.pose_history[player_id])} poses stored")
+    
+    def _validate_pose_hips(self, pose: Dict, bbox: List[int]) -> bool:
+        """Validate that the pose has hips within the player bounding box"""
+        x1, y1, x2, y2 = bbox
+        keypoints = pose['keypoints']
+        
+        # Hip keypoints are indices 11 (left hip) and 12 (right hip)
+        hip_indices = [11, 12]
+        
+        for hip_idx in hip_indices:
+            if hip_idx < len(keypoints):
+                hip_x, hip_y = keypoints[hip_idx][0], keypoints[hip_idx][1]
+                
+                # Skip if hip keypoint is invalid (0, 0)
+                if hip_x == 0 and hip_y == 0:
+                    continue
+                
+                # Check if hip is within bounding box
+                if not (x1 <= hip_x <= x2 and y1 <= hip_y <= y2):
+                    logger.warning(f"⚠️  Hip {hip_idx} at ({hip_x:.1f}, {hip_y:.1f}) outside bbox [{x1}, {y1}, {x2}, {y2}]")
+                    return False
+        
+        logger.debug(f"✅ Pose hips validated within bounding box")
+        return True
+    
+    def _attempt_pose_redraw(self, frame: np.ndarray, player: Dict, bbox: List[int], player_idx: int) -> Optional[Dict]:
+        """Attempt to redraw pose detection with stricter constraints if hips are invalid"""
+        x1, y1, x2, y2 = bbox
+        
+        # Try with even tighter ROI (no padding) and higher confidence threshold
+        player_roi = frame[y1:y2, x1:x2]
+        
+        if player_roi.size == 0:
+            return None
+        
+        logger.debug(f"🔄 Attempting pose redraw with tighter constraints for player at {bbox}")
+        
+        # Try multiple scales with stricter filtering
+        for scale in [1.0, 1.5]:
+            if scale != 1.0:
+                roi_height, roi_width = player_roi.shape[:2]
+                new_height, new_width = int(roi_height * scale), int(roi_width * scale)
+                scaled_roi = cv2.resize(player_roi, (new_width, new_height))
+            else:
+                scaled_roi = player_roi
+            
+            # Run pose detection with higher confidence threshold
+            results = self.model(scaled_roi, verbose=False, max_det=1, conf=0.6)  # Higher confidence threshold
+            
+            for result in results:
+                if result.keypoints is not None:
+                    keypoints = result.keypoints.data[0].cpu().numpy()
+                    confidence = result.keypoints.conf[0].cpu().numpy() if result.keypoints.conf is not None else np.ones(len(keypoints))
+                    
+                    # Scale keypoints back to original ROI size
+                    if scale != 1.0:
+                        keypoints[:, 0] /= scale
+                        keypoints[:, 1] /= scale
+                    
+                    # Adjust keypoints back to full frame coordinates
+                    keypoints[:, 0] += x1
+                    keypoints[:, 1] += y1
+                    
+                    # Create pose data
+                    pose_data = {
+                        'keypoints': keypoints.tolist(),
+                        'scale': scale,
+                        'scale_weight': 1.0,
+                        'confidence': confidence.tolist(),
+                        'player_idx': player_idx,  # Use the passed player_idx
+                        'bbox': bbox
+                    }
+                    
+                    # Validate hips
+                    if self._validate_pose_hips(pose_data, bbox):
+                        logger.debug(f"✅ Pose redraw successful with scale {scale}")
+                        return pose_data
+        
+        logger.warning(f"❌ Pose redraw failed - no valid poses found")
+        return None
 
 
 class BounceDetector:
