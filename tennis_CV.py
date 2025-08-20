@@ -16,6 +16,8 @@ from typing import List, Dict, Any, Optional, Tuple
 import logging
 from collections import deque
 import sys
+import json
+import os
 
 # Configure logging first
 logging.basicConfig(level=logging.INFO)
@@ -301,6 +303,9 @@ class TennisAnalysisDemo:
             logger.error(f"Video file not found: {video_path}")
             return
         
+        # Initialize CSV output
+        self._initialize_csv_output()
+        
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
             logger.error(f"Could not open video: {video_path}")
@@ -381,6 +386,27 @@ class TennisAnalysisDemo:
         """Analyze a single frame with ALL systems including court detection"""
         annotated_frame = frame.copy()
         
+        # Data to share with analytics viewer
+        frame_data = {
+            'frame_number': self.analysis_results['total_frames'],
+            'timestamp': time.time(),
+            'ball_x': None,
+            'ball_y': None,
+            'ball_confidence': None,
+            'ball_source': None,
+            'player_count': 0,
+            'player_bboxes': [],
+            'player_confidences': [],
+            'pose_count': 0,
+            'pose_keypoints': [],
+            'court_keypoints': [],
+            'bounce_detected': False,
+            'bounce_confidence': 0.0,
+            'processing_time': 0.0
+        }
+        
+        start_time = time.time()
+        
         # 1. Player Detection
         player_detections = []
         if self.player_detector:
@@ -388,6 +414,14 @@ class TennisAnalysisDemo:
                 player_detections = self.player_detector.detect_players(frame)
                 self.analysis_results['players_detected'] += len(player_detections)
                 annotated_frame = self.player_detector.draw_detections(annotated_frame, player_detections)
+                
+                # Store player data
+                frame_data['player_count'] = len(player_detections)
+                for detection in player_detections:
+                    if 'bbox' in detection:
+                        x1, y1, x2, y2 = detection['bbox']
+                        frame_data['player_bboxes'].append(f"{x1},{y1},{x2},{y2}")
+                        frame_data['player_confidences'].append(detection.get('confidence', 0.0))
             except Exception as e:
                 logger.error(f"Player detection error: {e}")
         
@@ -398,6 +432,15 @@ class TennisAnalysisDemo:
                 poses = self.pose_estimator.estimate_poses(frame, player_detections)
                 self.analysis_results['poses_estimated'] += len(poses)
                 annotated_frame = self.pose_estimator.draw_poses(annotated_frame, poses)
+                
+                # Store pose data
+                frame_data['pose_count'] = len(poses)
+                for pose in poses:
+                    if 'keypoints' in pose:
+                        keypoints_str = []
+                        for kp in pose['keypoints']:
+                            keypoints_str.append(f"{kp[0]:.1f},{kp[1]:.1f},{kp[2]:.3f}")
+                        frame_data['pose_keypoints'].append('|'.join(keypoints_str))
             except Exception as e:
                 logger.error(f"Pose estimation error: {e}")
         
@@ -406,6 +449,13 @@ class TennisAnalysisDemo:
         if ball_pred:
             self.analysis_results['combined_ball_detections'] += 1
             self.ball_positions.append(ball_pred)
+            
+            # Store ball data
+            x, y = ball_pred['position']
+            frame_data['ball_x'] = x
+            frame_data['ball_y'] = y
+            frame_data['ball_confidence'] = ball_pred.get('confidence', 0.0)
+            frame_data['ball_source'] = ball_pred.get('source', 'unknown')
             
             # Calculate velocity
             if len(self.ball_positions) >= 2:
@@ -421,6 +471,8 @@ class TennisAnalysisDemo:
                 bounce_probability = self.bounce_detector.detect_bounce(frame)
                 if bounce_probability > 0.7:  # High confidence threshold
                     self.analysis_results['bounces_detected'] += 1
+                    frame_data['bounce_detected'] = True
+                    frame_data['bounce_confidence'] = bounce_probability
                     # Draw bounce indicator
                     cv2.putText(annotated_frame, f"BOUNCE! ({bounce_probability:.2f})", 
                                (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
@@ -439,6 +491,15 @@ class TennisAnalysisDemo:
                     keypoints_detected = sum(1 for p in court_points if p[0] is not None and p[1] is not None)
                     self.analysis_results['keypoints_detected'] += keypoints_detected
                     
+                    # Store court data
+                    court_keypoints_str = []
+                    for point in court_points:
+                        if point[0] is not None and point[1] is not None:
+                            court_keypoints_str.append(f"{point[0]:.1f},{point[1]:.1f}")
+                        else:
+                            court_keypoints_str.append("None,None")
+                    frame_data['court_keypoints'] = court_keypoints_str
+                    
                     # Draw court keypoints and lines
                     annotated_frame = self._draw_court_visualization(annotated_frame, court_points)
                     
@@ -449,10 +510,62 @@ class TennisAnalysisDemo:
             except Exception as e:
                 logger.error(f"Court detection error: {e}")
         
+        # Calculate processing time
+        processing_time = time.time() - start_time
+        frame_data['processing_time'] = processing_time
+        self.analysis_results['processing_times'].append(processing_time)
+        
+        # Output data for analytics viewer
+        self._output_frame_data(frame_data)
+        
         # Add comprehensive frame information
         self._add_frame_info(annotated_frame)
         
         return annotated_frame
+    
+    def _output_frame_data(self, frame_data: Dict[str, Any]):
+        """Output frame data to CSV for analytics viewer"""
+        try:
+            # Convert data to CSV format
+            csv_line = [
+                str(frame_data['frame_number']),
+                str(frame_data['timestamp']),
+                str(frame_data['ball_x']) if frame_data['ball_x'] is not None else 'None',
+                str(frame_data['ball_y']) if frame_data['ball_y'] is not None else 'None',
+                str(frame_data['ball_confidence']) if frame_data['ball_confidence'] is not None else 'None',
+                str(frame_data['ball_source']) if frame_data['ball_source'] is not None else 'None',
+                str(frame_data['player_count']),
+                ';'.join(frame_data['player_bboxes']),
+                ';'.join([str(c) for c in frame_data['player_confidences']]),
+                str(frame_data['pose_count']),
+                ';'.join(frame_data['pose_keypoints']),
+                ';'.join(frame_data['court_keypoints']),
+                str(frame_data['bounce_detected']),
+                str(frame_data['bounce_confidence']),
+                str(frame_data['processing_time'])
+            ]
+            
+            # Write to CSV file
+            with open('tennis_analysis_data.csv', 'a') as f:
+                f.write(','.join(csv_line) + '\n')
+                
+        except Exception as e:
+            logger.debug(f"Error outputting frame data: {e}")
+    
+    def _initialize_csv_output(self):
+        """Initialize CSV file with headers"""
+        try:
+            headers = [
+                'frame_number', 'timestamp', 'ball_x', 'ball_y', 'ball_confidence', 'ball_source',
+                'player_count', 'player_bboxes', 'player_confidences', 'pose_count', 'pose_keypoints',
+                'court_keypoints', 'bounce_detected', 'bounce_confidence', 'processing_time'
+            ]
+            
+            with open('tennis_analysis_data.csv', 'w') as f:
+                f.write(','.join(headers) + '\n')
+                
+        except Exception as e:
+            logger.error(f"Error initializing CSV: {e}")
     
     def _draw_court_visualization(self, frame: np.ndarray, court_points: List[Tuple]) -> np.ndarray:
         """Draw court keypoints and lines with sophisticated visualization"""
@@ -631,6 +744,8 @@ class TennisAnalysisDemo:
             }
         
         return None
+    
+
     
     def _calculate_velocity(self, pos1: Dict, pos2: Dict) -> Tuple[float, float]:
         """Calculate velocity between two positions"""
