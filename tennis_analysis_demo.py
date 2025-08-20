@@ -659,11 +659,15 @@ class TennisAnalysisDemo:
             # Get last 3 ball positions for tail
             tail_positions = list(self.ball_positions)[-3:]
             for i, pos in enumerate(tail_positions):
-                if pos and pos != (x, y):
-                    # Fade the tail (more recent = more opaque)
-                    alpha = 0.3 + (i * 0.2)  # 0.3, 0.5, 0.7
-                    tail_color = (0, int(165 * alpha), int(255 * alpha))
-                    cv2.circle(frame, pos, 4, tail_color, -1)
+                if pos and isinstance(pos, tuple) and len(pos) == 2 and pos != (x, y):
+                    try:
+                        # Fade the tail (more recent = more opaque)
+                        alpha = 0.3 + (i * 0.2)  # 0.3, 0.5, 0.7
+                        tail_color = (0, int(165 * alpha), int(255 * alpha))
+                        cv2.circle(frame, (int(pos[0]), int(pos[1])), 4, tail_color, -1)
+                    except (ValueError, TypeError):
+                        # Skip invalid positions
+                        continue
         
         return frame
     
