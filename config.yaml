@@ -87,3 +87,6 @@ output:
   save_ball_trajectories: true
   save_analytics: true
   format: "json"
+
+# Pose estimation model
+pose_model_path: "models/yolov8x-pose.pt"

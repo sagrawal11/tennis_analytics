@@ -60,6 +60,11 @@ class TennisAnalysisDemo:
         self.tracknet_predictions = []
         self.yolo_predictions = []
         
+        # Player tracking state (NEW)
+        self.player_positions = deque(maxlen=30)  # Store last 30 player positions per player
+        self.player_velocities = deque(maxlen=10)  # Store last 10 player velocities
+        self.player_shot_history = deque(maxlen=20)  # Store shot type history
+        
         # Court detection state (NEW)
         self.court_keypoints = []
         self.court_confidence = []
@@ -146,7 +151,7 @@ class TennisAnalysisDemo:
         return {
             'models': {
                 'yolo_player': 'models/playersnball4.pt',
-                'yolo_pose': 'models/yolov8n-pose.pt',
+                'yolo_pose': 'models/yolov8x-pose.pt',
                 'bounce_detector': 'models/bounce_detector.cbm',
                 'tracknet': 'pretrained_ball_detection.pt',
                 'yolo_ball': 'models/playersnball4.pt',
@@ -216,10 +221,7 @@ class TennisAnalysisDemo:
             # Initialize pose estimator
             pose_model_path = self.config['models']['yolo_pose']
             if Path(pose_model_path).exists():
-                self.pose_estimator = PoseEstimator(
-                    pose_model_path,
-                    self.config['yolo_pose']
-                )
+                self.pose_estimator = PoseEstimator(pose_model_path)
                 logger.info("Pose estimator initialized successfully")
             else:
                 logger.warning(f"Pose estimation model not found: {pose_model_path}")
@@ -394,9 +396,12 @@ class TennisAnalysisDemo:
             'ball_y': None,
             'ball_confidence': None,
             'ball_source': None,
+            'ball_speed': 0.0,
             'player_count': 0,
             'player_bboxes': [],
             'player_confidences': [],
+            'player_speeds': [],
+            'player_shot_types': [],
             'pose_count': 0,
             'pose_keypoints': [],
             'court_keypoints': [],
@@ -422,6 +427,13 @@ class TennisAnalysisDemo:
                         x1, y1, x2, y2 = detection['bbox']
                         frame_data['player_bboxes'].append(f"{x1},{y1},{x2},{y2}")
                         frame_data['player_confidences'].append(detection.get('confidence', 0.0))
+                        
+                        # Calculate player speed
+                        player_speed = self._calculate_player_speed([x1, y1, x2, y2], frame_data['timestamp'])
+                        frame_data['player_speeds'].append(player_speed)
+                        
+                        # Detect shot type (will be updated after ball detection)
+                        frame_data['player_shot_types'].append("unknown")
             except Exception as e:
                 logger.error(f"Player detection error: {e}")
         
@@ -448,7 +460,7 @@ class TennisAnalysisDemo:
         ball_pred = self._detect_ball_in_frame(frame)
         if ball_pred:
             self.analysis_results['combined_ball_detections'] += 1
-            self.ball_positions.append(ball_pred)
+            frame_data['ball_position'] = ball_pred
             
             # Store ball data
             x, y = ball_pred['position']
@@ -456,6 +468,19 @@ class TennisAnalysisDemo:
             frame_data['ball_y'] = y
             frame_data['ball_confidence'] = ball_pred.get('confidence', 0.0)
             frame_data['ball_source'] = ball_pred.get('source', 'unknown')
+            
+            # Calculate ball speed
+            ball_speed = self._calculate_ball_speed([x, y], frame_data['timestamp'])
+            frame_data['ball_speed'] = ball_speed
+            
+            # Detect shot types for each player
+            for i, player_bbox_str in enumerate(frame_data['player_bboxes']):
+                try:
+                    x1, y1, x2, y2 = map(int, player_bbox_str.split(','))
+                    shot_type = self._detect_shot_type([x1, y1, x2, y2], [x, y], poses, self.court_keypoints)
+                    frame_data['player_shot_types'][i] = shot_type
+                except:
+                    continue
             
             # Calculate velocity
             if len(self.ball_positions) >= 2:
@@ -526,20 +551,23 @@ class TennisAnalysisDemo:
     def _output_frame_data(self, frame_data: Dict[str, Any]):
         """Output frame data to CSV for analytics viewer"""
         try:
-            # Convert data to CSV format
+            # Convert data to CSV format with proper escaping
             csv_line = [
                 str(frame_data['frame_number']),
                 str(frame_data['timestamp']),
-                str(frame_data['ball_x']) if frame_data['ball_x'] is not None else 'None',
-                str(frame_data['ball_y']) if frame_data['ball_y'] is not None else 'None',
-                str(frame_data['ball_confidence']) if frame_data['ball_confidence'] is not None else 'None',
-                str(frame_data['ball_source']) if frame_data['ball_source'] is not None else 'None',
+                str(frame_data['ball_x']) if frame_data['ball_x'] is not None else '',
+                str(frame_data['ball_y']) if frame_data['ball_y'] is not None else '',
+                str(frame_data['ball_confidence']) if frame_data['ball_confidence'] is not None else '',
+                str(frame_data['ball_source']) if frame_data['ball_source'] is not None else '',
+                str(frame_data['ball_speed']),
                 str(frame_data['player_count']),
-                ';'.join(frame_data['player_bboxes']),
-                ';'.join([str(c) for c in frame_data['player_confidences']]),
+                f'"{";".join(frame_data["player_bboxes"])}"' if frame_data['player_bboxes'] else '""',
+                f'"{";".join([str(c) for c in frame_data["player_confidences"]])}"' if frame_data['player_confidences'] else '""',
+                f'"{";".join([str(s) for s in frame_data["player_speeds"]])}"' if frame_data['player_speeds'] else '""',
+                f'"{";".join(frame_data["player_shot_types"])}"' if frame_data['player_shot_types'] else '""',
                 str(frame_data['pose_count']),
-                ';'.join(frame_data['pose_keypoints']),
-                ';'.join(frame_data['court_keypoints']),
+                f'"{";".join(frame_data["pose_keypoints"])}"' if frame_data['pose_keypoints'] else '""',
+                f'"{";".join(frame_data["court_keypoints"])}"' if frame_data['court_keypoints'] else '""',
                 str(frame_data['bounce_detected']),
                 str(frame_data['bounce_confidence']),
                 str(frame_data['processing_time'])
@@ -556,9 +584,9 @@ class TennisAnalysisDemo:
         """Initialize CSV file with headers"""
         try:
             headers = [
-                'frame_number', 'timestamp', 'ball_x', 'ball_y', 'ball_confidence', 'ball_source',
-                'player_count', 'player_bboxes', 'player_confidences', 'pose_count', 'pose_keypoints',
-                'court_keypoints', 'bounce_detected', 'bounce_confidence', 'processing_time'
+                'frame_number', 'timestamp', 'ball_x', 'ball_y', 'ball_confidence', 'ball_source', 'ball_speed',
+                'player_count', 'player_bboxes', 'player_confidences', 'player_speeds', 'player_shot_types',
+                'pose_count', 'pose_keypoints', 'court_keypoints', 'bounce_detected', 'bounce_confidence', 'processing_time'
             ]
             
             with open('tennis_analysis_data.csv', 'w') as f:
@@ -847,6 +875,299 @@ class TennisAnalysisDemo:
         total_time = time.time() - self.start_time
         print(f"Total analysis time: {total_time:.2f}s")
         print("="*60)
+    
+    def _detect_shot_type(self, player_bbox: List[int], ball_position: List[int], poses: List[Dict], court_keypoints: List[Tuple]) -> str:
+        """Detect tennis shot type based on pose analysis and game context"""
+        try:
+            if not poses or not ball_position:
+                logger.debug(f"⚠️  No poses ({len(poses) if poses else 0}) or ball position ({ball_position})")
+                return "ready_stance"
+            
+            # Get player center position
+            player_center_x = (player_bbox[0] + player_bbox[2]) / 2
+            player_center_y = (player_bbox[1] + player_bbox[3]) / 2
+            
+            # Get ball position
+            ball_x, ball_y = ball_position
+            
+            logger.debug(f"🔍 Player center: ({player_center_x:.1f}, {player_center_y:.1f}), Ball: ({ball_x}, {ball_y})")
+            
+            # Find the pose that corresponds to this player (closest to player center)
+            closest_pose = None
+            min_distance = float('inf')
+            
+            for pose in poses:
+                if 'keypoints' in pose and len(pose['keypoints']) > 0:
+                    # Use hip keypoints (11, 12) to find player center
+                    hip_keypoints = []
+                    confidence = pose.get('confidence', [])
+                    
+                    for i in [11, 12]:  # Left and right hip
+                        if i < len(pose['keypoints']) and i < len(confidence) and confidence[i] > 0.3:
+                            hip_keypoints.append(pose['keypoints'][i])
+                    
+                    if len(hip_keypoints) >= 2:
+                        # Calculate pose center using hip keypoints
+                        pose_center_x = sum(kp[0] for kp in hip_keypoints) / len(hip_keypoints)
+                        pose_center_y = sum(kp[1] for kp in hip_keypoints) / len(hip_keypoints)
+                        distance = np.sqrt((pose_center_x - player_center_x)**2 + (pose_center_y - player_center_y)**2)
+                        
+                        if distance < min_distance:
+                            min_distance = distance
+                            closest_pose = pose
+            
+            if not closest_pose:
+                logger.debug(f"⚠️  No closest pose found")
+                return "ready_stance"
+            
+            # Log pose information for debugging
+            pose_scale = closest_pose.get('scale', 'unknown')
+            logger.debug(f"🔍 Using pose with scale: {pose_scale}")
+            
+            # Analyze pose to determine shot type
+            keypoints = closest_pose['keypoints']
+            confidence = closest_pose.get('confidence', [])
+            
+            # Get key body keypoints (COCO format)
+            # 0: nose, 1: left_eye, 2: right_eye, 3: left_ear, 4: right_ear
+            # 5: left_shoulder, 6: right_shoulder, 7: left_elbow, 8: right_elbow
+            # 9: left_wrist, 10: right_wrist, 11: left_hip, 12: right_hip
+            # 13: left_knee, 14: right_knee, 15: left_ankle, 16: right_ankle
+            
+            # Extract keypoints with confidence > 0.3
+            confident_keypoints = {}
+            for i, kp in enumerate(keypoints):
+                if i < len(confidence) and confidence[i] > 0.3:  # Only confident keypoints
+                    confident_keypoints[i] = kp
+            
+            # DEBUG: Log keypoint information
+            logger.debug(f"🔍 Shot detection - Confident keypoints: {len(confident_keypoints)}/{len(keypoints)}")
+            logger.debug(f"🔍 Keypoint indices: {list(confident_keypoints.keys())}")
+            
+            # Check if we have enough keypoints for analysis
+            if len(confident_keypoints) < 8:
+                logger.debug(f"⚠️  Not enough confident keypoints ({len(confident_keypoints)} < 8), defaulting to ready_stance")
+                return "ready_stance"
+            
+            # Detect serve - both players near baseline
+            if self._is_serve_situation(player_center_y, court_keypoints):
+                logger.debug(f"🎾 Serve detected - player at y={player_center_y}")
+                return "serve"
+            
+            # Analyze arm positions for swing detection
+            swing_type = self._analyze_swing_pose(confident_keypoints, player_center_x, ball_x, ball_y, player_center_y)
+            
+            if swing_type != "ready_stance":
+                logger.debug(f"🎾 Swing detected: {swing_type}")
+                return swing_type
+            
+            # Check if player is in ready stance (neutral position)
+            if self._is_ready_stance(confident_keypoints, player_center_x):
+                logger.debug(f"🔄 Ready stance detected")
+                return "ready_stance"
+            
+            # If not swinging and not in ready stance, player is moving
+            logger.debug(f"🏃 Player moving - not in ready stance or swinging")
+            return "moving"
+                
+        except Exception as e:
+            logger.debug(f"Error detecting shot type: {e}")
+            return "ready_stance"
+    
+    def _is_serve_situation(self, player_y: float, court_keypoints: List[Tuple]) -> bool:
+        """Check if this is a serve situation (players near baseline)"""
+        try:
+            if not court_keypoints or len(court_keypoints) < 4:
+                logger.debug(f"⚠️  Not enough court keypoints for serve detection: {len(court_keypoints) if court_keypoints else 0}")
+                return False
+            
+            # Find baseline y-coordinate (assuming court keypoints are ordered)
+            # Court keypoints should include baseline coordinates
+            baseline_y = None
+            for kp in court_keypoints:
+                if kp[0] is not None and kp[1] is not None:
+                    if baseline_y is None or kp[1] > baseline_y:
+                        baseline_y = kp[1]
+            
+            if baseline_y is None:
+                logger.debug(f"⚠️  Could not determine baseline y-coordinate")
+                return False
+            
+            # Check if player is close to baseline (within 50 pixels)
+            distance_to_baseline = abs(player_y - baseline_y)
+            is_serve = distance_to_baseline < 50
+            
+            logger.debug(f"🔍 Serve detection - Player y: {player_y:.1f}, Baseline y: {baseline_y:.1f}, Distance: {distance_to_baseline:.1f}, Is serve: {is_serve}")
+            
+            return is_serve
+            
+        except Exception as e:
+            logger.debug(f"Error checking serve situation: {e}")
+            return False
+    
+    def _analyze_swing_pose(self, keypoints: Dict[int, List], player_center_x: float, ball_x: float, ball_y: float, player_center_y: float) -> str:
+        """Analyze pose to determine swing type (forehand, backhand, overhand smash)"""
+        try:
+            # Get arm keypoints
+            left_shoulder = keypoints.get(5)   # Left shoulder
+            right_shoulder = keypoints.get(6)  # Right shoulder
+            left_elbow = keypoints.get(7)      # Left elbow
+            right_elbow = keypoints.get(8)     # Right elbow
+            left_wrist = keypoints.get(9)      # Left wrist
+            right_wrist = keypoints.get(10)    # Right wrist
+            
+            # DEBUG: Log arm keypoint availability
+            logger.debug(f"🔍 Arm keypoints - Left: S{left_shoulder is not None}, E{left_elbow is not None}, W{left_wrist is not None}")
+            logger.debug(f"🔍 Arm keypoints - Right: S{right_shoulder is not None}, E{right_elbow is not None}, W{right_wrist is not None}")
+            
+            # Check if we have enough arm keypoints
+            arm_keypoints = [kp for kp in [left_shoulder, right_shoulder, left_elbow, right_elbow, left_wrist, right_wrist] if kp is not None]
+            if len(arm_keypoints) < 4:
+                logger.debug(f"⚠️  Not enough arm keypoints ({len(arm_keypoints)} < 4), defaulting to ready_stance")
+                return "ready_stance"
+            
+            # Calculate arm extension and position relative to ball
+            left_arm_extended = False
+            right_arm_extended = False
+            
+            # Check left arm extension
+            if left_shoulder and left_elbow and left_wrist:
+                left_arm_length = np.sqrt((left_elbow[0] - left_shoulder[0])**2 + (left_elbow[1] - left_shoulder[1])**2)
+                left_forearm_length = np.sqrt((left_wrist[0] - left_elbow[0])**2 + (left_wrist[1] - left_elbow[1])**2)
+                left_arm_extended = left_forearm_length > left_arm_length * 0.8
+                logger.debug(f"🔍 Left arm - Upper: {left_arm_length:.1f}, Forearm: {left_forearm_length:.1f}, Extended: {left_arm_extended}")
+            
+            # Check right arm extension
+            if right_shoulder and right_elbow and right_wrist:
+                right_arm_length = np.sqrt((right_elbow[0] - right_shoulder[0])**2 + (right_elbow[1] - right_shoulder[1])**2)
+                right_forearm_length = np.sqrt((right_wrist[0] - right_elbow[0])**2 + (right_wrist[1] - right_elbow[1])**2)
+                right_arm_extended = right_forearm_length > right_arm_length * 0.8
+                logger.debug(f"🔍 Right arm - Upper: {right_arm_length:.1f}, Forearm: {right_forearm_length:.1f}, Extended: {right_arm_extended}")
+            
+            # Determine swing type based on arm extension and ball position
+            if left_arm_extended and not right_arm_extended:
+                # Left arm extended - likely backhand
+                if ball_x < player_center_x:
+                    logger.debug(f"🎾 Backhand detected - left arm extended, ball on left")
+                    return "backhand"
+            elif right_arm_extended and not left_arm_extended:
+                # Right arm extended - check ball position for forehand vs overhand
+                if ball_y < player_center_y - 50:  # Ball above player - overhand smash
+                    logger.debug(f"🎾 Overhand smash detected - right arm extended, ball above")
+                    return "overhand_smash"
+                else:  # Ball at or below player level - forehand
+                    logger.debug(f"🎾 Forehand detected - right arm extended, ball at/below level")
+                    return "forehand"
+            elif left_arm_extended and right_arm_extended:
+                # Both arms extended - could be overhand smash
+                if ball_y < player_center_y - 30:
+                    logger.debug(f"🎾 Overhand smash detected - both arms extended, ball above")
+                    return "overhand_smash"
+            
+            logger.debug(f"🔄 No swing detected - arms not extended enough")
+            return "ready_stance"
+            
+        except Exception as e:
+            logger.debug(f"Error analyzing swing pose: {e}")
+            return "ready_stance"
+    
+    def _is_ready_stance(self, keypoints: Dict[int, List], player_center_x: float) -> bool:
+        """Check if player is in neutral ready stance"""
+        try:
+            # Get key body keypoints
+            left_shoulder = keypoints.get(5)   # Left shoulder
+            right_shoulder = keypoints.get(6)  # Right shoulder
+            left_hip = keypoints.get(11)       # Left hip
+            right_hip = keypoints.get(12)      # Right hip
+            
+            if not all([left_shoulder, right_shoulder, left_hip, right_hip]):
+                logger.debug(f"⚠️  Missing key body keypoints for ready stance detection")
+                return False
+            
+            # Check if shoulders and hips are roughly level (neutral stance)
+            shoulder_diff = abs(left_shoulder[1] - right_shoulder[1])
+            hip_diff = abs(left_hip[1] - right_hip[1])
+            
+            logger.debug(f"🔍 Ready stance - Shoulder diff: {shoulder_diff:.1f}, Hip diff: {hip_diff:.1f}")
+            
+            # In ready stance, shoulders and hips should be roughly level
+            is_ready = shoulder_diff < 20 and hip_diff < 20
+            logger.debug(f"🔍 Ready stance detected: {is_ready}")
+            return is_ready
+            
+        except Exception as e:
+            logger.debug(f"Error checking ready stance: {e}")
+            return False
+    
+    def _calculate_player_speed(self, player_bbox: List[int], frame_time: float) -> float:
+        """Calculate player speed in pixels per second"""
+        try:
+            if not self.player_positions:
+                return 0.0
+            
+            # Get current player center
+            current_center = [(player_bbox[0] + player_bbox[2]) / 2, (player_bbox[1] + player_bbox[3]) / 2]
+            
+            # Add to position history
+            self.player_positions.append((current_center, frame_time))
+            
+            # Calculate speed if we have at least 2 positions
+            if len(self.player_positions) >= 2:
+                prev_pos, prev_time = self.player_positions[-2]
+                curr_pos, curr_time = self.player_positions[-1]
+                
+                # Calculate distance and time difference
+                distance = np.sqrt((curr_pos[0] - prev_pos[0])**2 + (curr_pos[1] - prev_pos[1])**2)
+                time_diff = curr_time - prev_time
+                
+                if time_diff > 0:
+                    speed = distance / time_diff  # pixels per second
+                    self.player_velocities.append(speed)
+                    
+                    # Return average speed over last few frames
+                    if len(self.player_velocities) > 0:
+                        return np.mean(list(self.player_velocities)[-5:])  # Average of last 5 velocities
+            
+            return 0.0
+            
+        except Exception as e:
+            logger.debug(f"Error calculating player speed: {e}")
+            return 0.0
+    
+    def _calculate_ball_speed(self, ball_position: List[int], frame_time: float) -> float:
+        """Calculate ball speed in pixels per second"""
+        try:
+            if not self.ball_positions:
+                return 0.0
+            
+            # Get current ball position
+            current_pos = ball_position
+            
+            # Add to position history with timestamp
+            self.ball_positions.append((current_pos, frame_time))
+            
+            # Calculate speed if we have at least 2 positions
+            if len(self.ball_positions) >= 2:
+                prev_pos, prev_time = self.ball_positions[-2]
+                curr_pos, curr_time = self.ball_positions[-1]
+                
+                # Calculate distance and time difference
+                distance = np.sqrt((curr_pos[0] - prev_pos[0])**2 + (curr_pos[1] - prev_pos[1])**2)
+                time_diff = curr_time - prev_time
+                
+                if time_diff > 0:
+                    speed = distance / time_diff  # pixels per second
+                    self.ball_velocities.append(speed)
+                    
+                    # Return average speed over last few frames
+                    if len(self.ball_velocities) > 0:
+                        return np.mean(list(self.ball_velocities)[-5:])  # Average of last 5 velocities
+            
+            return 0.0
+            
+        except Exception as e:
+            logger.debug(f"Error calculating ball speed: {e}")
+            return 0.0
 
 
 class PlayerDetector:
@@ -939,32 +1260,37 @@ class PlayerDetector:
 
 
 class PoseEstimator:
-    """YOLOv8-pose-based pose estimation"""
+    """Multi-scale pose estimation for better arm detection"""
     
-    def __init__(self, model_path: str, config: Dict[str, Any]):
-        self.config = config
+    def __init__(self, model_path: str):
+        """Initialize the multi-scale pose estimator"""
         try:
             from ultralytics import YOLO
             self.model = YOLO(model_path)
             logger.info(f"Pose estimator initialized with {model_path}")
-        except ImportError:
-            logger.error("Ultralytics not installed. Install with: pip install ultralytics")
-            self.model = None
+            self.scales = [1.0, 1.5, 2.0]  # Original, 1.5x, 2x zoom
+            self.scale_weights = [0.4, 0.35, 0.25]  # Weight for each scale
         except Exception as e:
-            logger.error(f"Error loading pose estimation model: {e}")
+            logger.error(f"Failed to initialize pose estimator: {e}")
             self.model = None
     
-    def estimate_poses(self, frame: np.ndarray, player_detections: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        if not self.model:
+    def estimate_poses(self, frame: np.ndarray, player_detections: List[Dict]) -> List[Dict]:
+        """Estimate poses using multi-scale detection for better arm keypoints"""
+        if not self.model or not player_detections:
             return []
         
-        poses = []
         try:
-            for player_detection in player_detections:
-                x1, y1, x2, y2 = player_detection['bbox']
+            all_poses = []
+            
+            # Process each player individually with multi-scale detection
+            for player_idx, player in enumerate(player_detections):
+                if 'bbox' not in player:
+                    continue
+                
+                x1, y1, x2, y2 = player['bbox']
                 
                 # Extract player region with padding
-                padding = 20
+                padding = 50  # Increased padding for better context
                 x1_pad = max(0, x1 - padding)
                 y1_pad = max(0, y1 - padding)
                 x2_pad = min(frame.shape[1], x2 + padding)
@@ -975,75 +1301,145 @@ class PoseEstimator:
                 if player_roi.size == 0:
                     continue
                 
-                # Run pose estimation
-                results = self.model(
-                    player_roi,
-                    conf=self.config.get('conf_threshold', 0.3),
-                    iou=self.config.get('iou_threshold', 0.45),
-                    max_det=1,
-                    verbose=False
-                )
+                player_poses = []
                 
-                for result in results:
-                    try:
-                        keypoints = result.keypoints
-                        if keypoints is not None and hasattr(keypoints, 'data') and len(keypoints.data) > 0:
-                            kpts = keypoints.data[0].cpu().numpy()
-                            if len(kpts) > 0:
-                                # Adjust keypoint coordinates back to full frame coordinates
-                                adjusted_kpts = kpts.copy()
-                                adjusted_kpts[:, 0] += x1_pad  # Add x offset
-                                adjusted_kpts[:, 1] += y1_pad  # Add y offset
-                                
-                                pose = {
-                                    'keypoints': adjusted_kpts,
-                                    'bbox': [x1, y1, x2, y2],
-                                    'confidence': float(result.boxes.conf[0].cpu().numpy()) if result.boxes is not None and len(result.boxes.conf) > 0 else 0.0
-                                }
-                                poses.append(pose)
-                    except Exception as e:
-                        logger.debug(f"Error processing pose result: {e}")
-                        continue
+                # Run pose detection at multiple scales for this player
+                for scale_idx, scale in enumerate(self.scales):
+                    # Resize player ROI for this scale
+                    if scale != 1.0:
+                        roi_height, roi_width = player_roi.shape[:2]
+                        new_height, new_width = int(roi_height * scale), int(roi_width * scale)
+                        scaled_roi = cv2.resize(player_roi, (new_width, new_height))
+                    else:
+                        scaled_roi = player_roi
+                    
+                    # Run pose detection on scaled ROI
+                    results = self.model(scaled_roi, verbose=False, max_det=1)
+                    
+                    # Process results for this scale
+                    for result in results:
+                        if result.keypoints is not None:
+                            keypoints = result.keypoints.data[0].cpu().numpy()
+                            
+                            # Scale keypoints back to original ROI size
+                            if scale != 1.0:
+                                keypoints[:, 0] /= scale  # x coordinates
+                                keypoints[:, 1] /= scale  # y coordinates
+                            
+                            # Adjust keypoints back to full frame coordinates
+                            keypoints[:, 0] += x1_pad  # Add x offset
+                            keypoints[:, 1] += y1_pad  # Add y offset
+                            
+                            # Create pose data with scale information
+                            pose_data = {
+                                'keypoints': keypoints.tolist(),
+                                'scale': scale,
+                                'scale_weight': self.scale_weights[scale_idx],
+                                'confidence': result.keypoints.conf[0].cpu().numpy().tolist() if result.keypoints.conf is not None else [],
+                                'player_idx': player_idx,
+                                'bbox': [x1, y1, x2, y2]
+                            }
+                            player_poses.append(pose_data)
+                
+                # Combine poses for this player from different scales
+                if player_poses:
+                    if len(player_poses) > 1:
+                        # Multiple scales detected - combine them
+                        logger.debug(f"🔍 Player {player_idx}: Combining {len(player_poses)} poses from different scales")
+                        combined_pose = self._combine_player_poses(player_poses)
+                        all_poses.append(combined_pose)
+                    else:
+                        # Only one scale detected - use as is
+                        logger.debug(f"🔍 Player {player_idx}: Using single pose from scale {player_poses[0]['scale']}")
+                        all_poses.append(player_poses[0])
+                else:
+                    logger.debug(f"⚠️  Player {player_idx}: No poses detected at any scale")
             
-            return poses
+            logger.debug(f"🔍 Total poses detected for all players: {len(all_poses)}")
+            return all_poses
+            
         except Exception as e:
-            logger.error(f"Pose estimation error: {e}")
+            logger.error(f"Error in multi-scale pose estimation: {e}")
             return []
     
-    def draw_poses(self, frame: np.ndarray, poses: List[Dict[str, Any]]) -> np.ndarray:
-        frame_copy = frame.copy()
+    def _combine_player_poses(self, poses: List[Dict]) -> Dict:
+        """Combine poses from different scales for the same player"""
+        if not poses:
+            return {}
         
-        # COCO keypoint connections for skeleton drawing
-        skeleton = [
-            (0, 1), (0, 2), (1, 3), (2, 4),  # Head
-            (5, 6), (5, 7), (6, 8), (7, 9),  # Arms
-            (5, 11), (6, 12), (11, 12),      # Torso
-            (11, 13), (13, 15), (12, 14), (14, 16)  # Legs
-        ]
+        # Sort by scale weight (highest first)
+        poses.sort(key=lambda x: x['scale_weight'], reverse=True)
+        
+        # Start with the highest confidence scale
+        best_pose = poses[0]
+        combined_keypoints = best_pose['keypoints'].copy()
+        combined_confidence = best_pose['confidence'].copy()
+        
+        # For arm keypoints (5-10), try to improve with other scales
+        arm_indices = [5, 6, 7, 8, 9, 10]  # Shoulders, elbows, wrists
+        
+        for pose in poses[1:]:  # Skip the best one
+            for idx in arm_indices:
+                if (idx < len(pose['keypoints']) and 
+                    idx < len(pose['confidence']) and 
+                    pose['confidence'][idx] > combined_confidence[idx]):
+                    
+                    # This scale has better confidence for this arm keypoint
+                    combined_keypoints[idx] = pose['keypoints'][idx]
+                    combined_confidence[idx] = pose['confidence'][idx]
+        
+        return {
+            'keypoints': combined_keypoints,
+            'confidence': combined_confidence,
+            'scale': 'combined',
+            'scale_weight': 1.0,
+            'player_idx': best_pose.get('player_idx', 0),
+            'bbox': best_pose.get('bbox', [])
+        }
+    
+    def draw_poses(self, frame: np.ndarray, poses: List[Dict]) -> np.ndarray:
+        """Draw poses on frame"""
+        if not poses:
+            return frame
         
         for pose in poses:
-            keypoints = pose['keypoints']
-            bbox = pose['bbox']
-            
-            # Draw keypoints
-            for i, (x, y, conf) in enumerate(keypoints):
-                if conf > 0.3:  # Only draw confident keypoints
-                    cv2.circle(frame_copy, (int(x), int(y)), 3, (0, 255, 255), -1)
-            
-            # Draw skeleton
-            for start_idx, end_idx in skeleton:
-                if (start_idx < len(keypoints) and end_idx < len(keypoints) and 
-                    keypoints[start_idx][2] > 0.3 and keypoints[end_idx][2] > 0.3):
-                    start_point = (int(keypoints[start_idx][0]), int(keypoints[start_idx][1]))
-                    end_point = (int(keypoints[end_idx][0]), int(keypoints[end_idx][1]))
-                    cv2.line(frame_copy, start_point, end_point, (255, 255, 0), 2)
-            
-            # Draw pose confidence
-            x1, y1, x2, y2 = bbox
-            cv2.putText(frame_copy, f"Pose: {pose['confidence']:.2f}", 
-                       (x1, y2+20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 2)
+            if 'keypoints' in pose:
+                keypoints = pose['keypoints']
+                confidence = pose.get('confidence', [])
+                
+                # Draw keypoints
+                for i, kp in enumerate(keypoints):
+                    if len(confidence) > i and confidence[i] > 0.3:
+                        x, y = int(kp[0]), int(kp[1])
+                        cv2.circle(frame, (x, y), 3, (0, 255, 0), -1)
+                        
+                        # Label keypoint index for debugging
+                        cv2.putText(frame, str(i), (x+5, y-5), 
+                                   cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 255, 0), 1)
+                
+                # Draw connections between keypoints (skeleton)
+                self._draw_skeleton(frame, keypoints, confidence)
         
-        return frame_copy
+        return frame
+    
+    def _draw_skeleton(self, frame: np.ndarray, keypoints: List, confidence: List):
+        """Draw skeleton connections between keypoints"""
+        # Define skeleton connections (COCO format)
+        skeleton = [
+            (0, 1), (0, 2), (1, 3), (2, 4),  # Head connections
+            (5, 6), (5, 7), (7, 9), (6, 8), (8, 10),  # Arm connections
+            (5, 11), (6, 12), (11, 12),  # Torso connections
+            (11, 13), (13, 15), (12, 14), (14, 16)  # Leg connections
+        ]
+        
+        for connection in skeleton:
+            if (connection[0] < len(keypoints) and connection[1] < len(keypoints) and
+                connection[0] < len(confidence) and connection[1] < len(confidence) and
+                confidence[connection[0]] > 0.3 and confidence[connection[1]] > 0.3):
+                
+                pt1 = (int(keypoints[connection[0]][0]), int(keypoints[connection[0]][1]))
+                pt2 = (int(keypoints[connection[1]][0]), int(keypoints[connection[1]][1]))
+                cv2.line(frame, pt1, pt2, (0, 255, 0), 2)
 
 
 class BounceDetector:

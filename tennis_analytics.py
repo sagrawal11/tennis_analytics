@@ -16,6 +16,7 @@ import logging
 from collections import deque
 import csv
 import pandas as pd
+import sys
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -37,26 +38,20 @@ class TennisAnalyticsViewer:
         self.is_playing = True
         self.playback_speed = 1.0  # 1.0 = real-time, 2.0 = 2x speed, etc.
         
-        # Analytics data
+        # Initialize analytics data
         self.analytics_data = {
             'total_frames': 0,
-            'players_detected': 0,
-            'poses_estimated': 0,
-            'bounces_detected': 0,
-            'tracknet_detections': 0,
-            'yolo_ball_detections': 0,
             'combined_ball_detections': 0,
-            'court_detections': 0,
-            'keypoints_detected': 0,
-            'processing_times': [],
-            'ball_velocities': deque(maxlen=20),
-            'player_movements': deque(maxlen=50),
+            'bounces_detected': 0,
             'shot_analysis': {
+                'serve_count': 0,
                 'forehand_count': 0,
                 'backhand_count': 0,
-                'serve_count': 0,
-                'volley_count': 0
-            }
+                'overhand_smash_count': 0,
+                'ready_stance_count': 0,
+                'moving_count': 0
+            },
+            'processing_times': []
         }
         
         # Visualization settings
@@ -159,11 +154,33 @@ class TennisAnalyticsViewer:
         self.analytics_data['combined_ball_detections'] = len(self.csv_data[self.csv_data['ball_x'].notna()])
         self.analytics_data['bounces_detected'] = len(self.csv_data[self.csv_data['bounce_detected'] == True])
         
+        # Calculate shot type statistics
+        shot_counts = {
+            'serve': 0, 'forehand': 0, 'backhand': 0, 'overhand_smash': 0, 
+            'ready_stance': 0, 'moving': 0
+        }
+        
+        for _, row in self.csv_data.iterrows():
+            if pd.notna(row['player_shot_types']) and row['player_shot_types'] != '':
+                shot_types = row['player_shot_types'].split(';')
+                for shot_type in shot_types:
+                    if shot_type in shot_counts:
+                        shot_counts[shot_type] += 1
+        
+        self.analytics_data['shot_analysis']['serve_count'] = shot_counts['serve']
+        self.analytics_data['shot_analysis']['forehand_count'] = shot_counts['forehand']
+        self.analytics_data['shot_analysis']['backhand_count'] = shot_counts['backhand']
+        self.analytics_data['shot_analysis']['overhand_smash_count'] = shot_counts['overhand_smash']
+        self.analytics_data['shot_analysis']['ready_stance_count'] = shot_counts['ready_stance']
+        self.analytics_data['shot_analysis']['moving_count'] = shot_counts['moving']
+        
         # Calculate average processing time
         if 'processing_time' in self.csv_data.columns:
             self.analytics_data['processing_times'] = self.csv_data['processing_time'].dropna().tolist()
         
         logger.info(f"📈 Analytics calculated: {self.analytics_data['combined_ball_detections']} ball detections, {self.analytics_data['bounces_detected']} bounces")
+        logger.info(f"🎾 Shot analysis: {shot_counts['serve']} serves, {shot_counts['forehand']} forehands, {shot_counts['backhand']} backhands, {shot_counts['overhand_smash']} smashes")
+        logger.info(f"🔄 Player states: {shot_counts['ready_stance']} ready stance, {shot_counts['moving']} moving")
     
     def get_frame_data(self, frame_idx: int) -> Optional[Dict[str, Any]]:
         """Get data for a specific frame"""
@@ -178,7 +195,8 @@ class TennisAnalyticsViewer:
             ball_data = {
                 'position': [int(row['ball_x']), int(row['ball_y'])],
                 'confidence': float(row['ball_confidence']) if pd.notna(row['ball_confidence']) else 0.0,
-                'source': row['ball_source'] if pd.notna(row['ball_source']) else 'unknown'
+                'source': row['ball_source'] if pd.notna(row['ball_source']) else 'unknown',
+                'speed': float(row['ball_speed']) if pd.notna(row['ball_speed']) else 0.0
             }
         
         # Parse player data
@@ -186,15 +204,22 @@ class TennisAnalyticsViewer:
         if pd.notna(row['player_bboxes']) and row['player_bboxes'] != '':
             bboxes = row['player_bboxes'].split(';')
             confidences = row['player_confidences'].split(';') if pd.notna(row['player_confidences']) else []
+            speeds = row['player_speeds'].split(';') if pd.notna(row['player_speeds']) else []
+            shot_types = row['player_shot_types'].split(';') if pd.notna(row['player_shot_types']) else []
             
             for i, bbox_str in enumerate(bboxes):
                 if bbox_str and bbox_str != '':
                     try:
                         x1, y1, x2, y2 = map(int, bbox_str.split(','))
                         conf = float(confidences[i]) if i < len(confidences) else 0.0
+                        speed = float(speeds[i]) if i < len(speeds) else 0.0
+                        shot_type = shot_types[i] if i < len(shot_types) else 'unknown'
+                        
                         player_detections.append({
                             'bbox': [x1, y1, x2, y2],
-                            'confidence': conf
+                            'confidence': conf,
+                            'speed': speed,
+                            'shot_type': shot_type
                         })
                     except:
                         continue
@@ -315,6 +340,7 @@ class TennisAnalyticsViewer:
         
         x, y = ball_data['position']
         conf = ball_data.get('confidence', 0.0)
+        speed = ball_data.get('speed', 0.0)
         
         # Use single color for ball detection (orange) - matching CV system
         color = self.colors['ball']
@@ -327,6 +353,11 @@ class TennisAnalyticsViewer:
         cv2.putText(frame, f"{conf:.2f}", (x + 15, y - 15), 
                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
         
+        # Draw ball speed above ball
+        speed_text = f"Speed: {speed:.1f} px/s"
+        cv2.putText(frame, speed_text, (x - 30, y - 30), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 2)  # Yellow for speed
+        
         return frame
     
     def draw_player_detections(self, frame: np.ndarray, player_detections: List[Dict]) -> np.ndarray:
@@ -338,6 +369,8 @@ class TennisAnalyticsViewer:
             if 'bbox' in detection:
                 x1, y1, x2, y2 = detection['bbox']
                 conf = detection.get('confidence', 0.0)
+                speed = detection.get('speed', 0.0)
+                shot_type = detection.get('shot_type', 'ready_stance')
                 
                 # Color for players (green) - matching CV system
                 color = self.colors['player']
@@ -345,10 +378,29 @@ class TennisAnalyticsViewer:
                 # Draw bounding box
                 cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
                 
-                # Draw label
+                # Draw player label with confidence
                 label = f"Player: {conf:.2f}"
                 cv2.putText(frame, label, (x1, y1-10), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+                
+                # Draw player speed above player
+                speed_text = f"Speed: {speed:.1f} px/s"
+                cv2.putText(frame, speed_text, (x1, y1-30), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 2)  # Yellow for speed
+                
+                # Draw shot type below player with appropriate colors
+                if shot_type != 'ready_stance':
+                    shot_colors = {
+                        'forehand': (0, 255, 255),      # Cyan
+                        'backhand': (255, 0, 255),      # Magenta
+                        'serve': (255, 255, 0),         # Yellow
+                        'overhand_smash': (0, 255, 0),  # Green
+                        'moving': (128, 128, 128)       # Gray
+                    }
+                    shot_color = shot_colors.get(shot_type, (255, 255, 255))  # White default
+                    shot_text = f"Shot: {shot_type.replace('_', ' ').title()}"
+                    cv2.putText(frame, shot_text, (x1, y2+20), 
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.5, shot_color, 2)
         
         return frame
     
@@ -380,7 +432,7 @@ class TennisAnalyticsViewer:
         """Draw analytics information panel"""
         # Create semi-transparent overlay for analytics
         overlay = frame.copy()
-        cv2.rectangle(overlay, (10, 10), (400, 350), (0, 0, 0), -1)
+        cv2.rectangle(overlay, (10, 10), (500, 450), (0, 0, 0), -1)
         cv2.addWeighted(overlay, 0.7, frame, 0.3, 0, frame)
         
         # Analytics title
@@ -397,6 +449,12 @@ class TennisAnalyticsViewer:
             f"Total Frames: {self.analytics_data['total_frames']}",
             f"Ball Detections: {self.analytics_data['combined_ball_detections']}",
             f"Bounces: {self.analytics_data['bounces_detected']}",
+            f"Serves: {self.analytics_data['shot_analysis']['serve_count']}",
+            f"Forehands: {self.analytics_data['shot_analysis']['forehand_count']}",
+            f"Backhands: {self.analytics_data['shot_analysis']['backhand_count']}",
+            f"Overhand Smashes: {self.analytics_data['shot_analysis']['overhand_smash_count']}",
+            f"Ready Stance: {self.analytics_data['shot_analysis']['ready_stance_count']}",
+            f"Moving: {self.analytics_data['shot_analysis']['moving_count']}",
             f"Current Frame: {self.current_frame_idx}",
             f"Playback Speed: {self.playback_speed}x"
         ]
@@ -531,17 +589,32 @@ def main():
     """Main function to run the analytics viewer"""
     import argparse
     
-    parser = argparse.ArgumentParser(description='Tennis Analytics Viewer')
-    parser.add_argument('--config', '-c', type=str, default='config.yaml',
-                       help='Path to configuration file')
-    parser.add_argument('--csv', type=str, default='tennis_analysis_data.csv',
-                       help='Path to CSV data file')
+    parser = argparse.ArgumentParser(description="Tennis Analytics Viewer")
+    parser.add_argument("--csv", type=str, default="tennis_analysis_data.csv", 
+                       help="Path to CSV data file")
+    parser.add_argument("--width", type=int, default=1280, help="Window width")
+    parser.add_argument("--height", type=int, default=720, help="Window height")
     
     args = parser.parse_args()
     
     # Create and run analytics viewer
-    viewer = TennisAnalyticsViewer(args.config)
-    viewer.run_viewer()
+    viewer = TennisAnalyticsViewer(args.width, args.height)
+    
+    if viewer.load_csv_data(args.csv):
+        logger.info(f"✅ Loaded CSV data: {args.csv}")
+        logger.info("🎮 Starting analytics viewer...")
+        logger.info("Controls:")
+        logger.info("  - Press 'q' to quit")
+        logger.info("  - Press 'space' to pause/resume")
+        logger.info("  - Press 'left/right' arrows to step through frames")
+        logger.info("  - Press 'up/down' arrows to change playback speed")
+        logger.info("  - Press 't' to toggle ball trajectories")
+        logger.info("  - Press 'a' to toggle analytics panel")
+        
+        viewer.run_viewer()
+    else:
+        logger.error(f"❌ Failed to load CSV data: {args.csv}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
