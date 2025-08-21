@@ -33,9 +33,16 @@ class EnhancedShotClassifier:
         self.last_shot_frame = 0
         self.current_frame = 0
         
+        # Shot persistence tracking
+        self.current_shot_type = {}  # Track current shot type for each player
+        self.shot_start_frame = {}  # Track when shot started for each player
+        self.shot_persistence_frames = 8  # How many frames to persist a shot classification
+        
         # Movement tracking
         self.player_positions = {}  # Track player positions over time
-        self.movement_threshold = 10  # Pixels of movement to consider "moving"
+        self.movement_threshold = 25  # Pixels of movement over 15 frames to consider "moving"
+        self.movement_window = 15  # Number of frames to analyze for movement (longer window)
+        self.player_position_history = {}  # Store position history for each player
         
         # Shot type definitions
         self.shot_types = {
@@ -52,7 +59,7 @@ class EnhancedShotClassifier:
     
     def classify_shot(self, player_bbox: List[int], ball_position: Optional[List[int]], 
                      poses: List[Dict], court_keypoints: List[Tuple], 
-                     player_speed: float = 0.0, frame_number: int = 0) -> str:
+                     frame_number: int = 0, player_id: int = 0) -> str:
         """
         Enhanced shot classification with multiple analysis methods
         
@@ -84,7 +91,7 @@ class EnhancedShotClassifier:
             # Multi-stage classification
             shot_type = self._classify_shot_multi_stage(
                 confident_keypoints, player_center_x, player_center_y,
-                ball_position, court_keypoints, player_speed
+                ball_position, court_keypoints, player_bbox, player_id
             )
             
             # Add to history for temporal analysis
@@ -96,7 +103,7 @@ class EnhancedShotClassifier:
             
             # Apply tennis game flow rules
             player_center = [player_center_x, player_center_y]
-            final_shot_type = self._enforce_tennis_game_flow(smoothed_shot_type, frame_number, ball_position, player_center)
+            final_shot_type = self._enforce_tennis_game_flow(smoothed_shot_type, frame_number, ball_position, player_center, player_id)
             
             logger.debug(f"🎾 Shot classification: {shot_type} -> {smoothed_shot_type} -> {final_shot_type}")
             return final_shot_type
@@ -148,7 +155,8 @@ class EnhancedShotClassifier:
     
     def _classify_shot_multi_stage(self, keypoints: Dict[int, List], player_x: float, 
                                  player_y: float, ball_position: Optional[List[int]], 
-                                 court_keypoints: List[Tuple], player_speed: float) -> str:
+                                 court_keypoints: List[Tuple], player_bbox: List[int], 
+                                 player_id: int = 0) -> str:
         """Multi-stage shot classification"""
         
         # Stage 1: Check for serve
@@ -159,14 +167,14 @@ class EnhancedShotClassifier:
         if self._is_overhead_smash(keypoints, player_y, court_keypoints, ball_position):
             return "overhead_smash"
         
-        # Stage 3: Check for movement (before groundstrokes)
-        if self._is_moving(player_bbox, player_id=0):  # Assuming single player for now
-            return "moving"
-        
-        # Stage 4: Check for groundstrokes (forehand/backhand)
-        groundstroke = self._classify_groundstroke(keypoints, player_x, ball_position)
+        # Stage 3: Check for groundstrokes (forehand/backhand) - PRIORITY OVER MOVEMENT
+        groundstroke = self._classify_groundstroke(keypoints, player_x, ball_position, player_id)
         if groundstroke != "ready_stance":
             return groundstroke
+        
+        # Stage 4: Check for movement (only if not hitting a shot)
+        if self._is_moving(player_bbox, player_id):
+            return "moving"
         
         # Stage 5: Default to ready stance
         
@@ -192,21 +200,21 @@ class EnhancedShotClassifier:
             # Serve typically has one arm raised high above shoulder
             if right_shoulder and right_wrist:
                 # Check if right arm is raised significantly above shoulder
-                arm_raised = right_wrist[1] < right_shoulder[1] - 30
+                arm_raised = right_wrist[1] < right_shoulder[1] - 20  # More lenient threshold
                 if arm_raised:
                     return True
             
             if left_shoulder and left_wrist:
                 # Check if left arm is raised significantly above shoulder
-                arm_raised = left_wrist[1] < left_shoulder[1] - 30
+                arm_raised = left_wrist[1] < left_shoulder[1] - 20  # More lenient threshold
                 if arm_raised:
                     return True
             
-            # Check ball position for serve (if available)
+            # Check ball position for serve (if available) - more lenient
             if ball_position:
                 ball_x, ball_y = ball_position
-                # Ball should be high above player for serve
-                if ball_y < player_y - self.SERVE_HEIGHT_THRESHOLD:
+                # Ball should be high above player for serve (more lenient threshold)
+                if ball_y < player_y - 50:  # Lower threshold since video starts at peak
                     return True
             
             return False
@@ -255,42 +263,52 @@ class EnhancedShotClassifier:
 
     
     def _classify_groundstroke(self, keypoints: Dict[int, List], player_x: float, 
-                             ball_position: Optional[List[int]]) -> str:
-        """Enhanced groundstroke classification (forehand/backhand)"""
+                             ball_position: Optional[List[int]], player_id: int = 0) -> str:
+        """Enhanced groundstroke classification based on right hand position (accounting for player orientation)"""
         try:
-            left_shoulder = keypoints.get(5)
+            # Focus on right hand position since all players are assumed to be right-handed
             right_shoulder = keypoints.get(6)
-            left_elbow = keypoints.get(7)
             right_elbow = keypoints.get(8)
-            left_wrist = keypoints.get(9)
             right_wrist = keypoints.get(10)
             
-            # Check for actual swing motion (arms extended and positioned for hitting)
-            left_arm_swing = self._is_arm_in_swing_position(left_shoulder, left_elbow, left_wrist, is_right_arm=False)
-            right_arm_swing = self._is_arm_in_swing_position(right_shoulder, right_elbow, right_wrist, is_right_arm=True)
+            # Need reliable right arm keypoints
+            if not all([right_shoulder, right_elbow, right_wrist]):
+                return "ready_stance"
             
-            # Determine swing side based on arm positions and ball position
-            if left_arm_swing and not right_arm_swing:
-                # Left arm in swing position - likely backhand
-                if ball_position:
-                    ball_x, ball_y = ball_position
-                    if ball_x < player_x:  # Ball on left side
-                        return "backhand"
-                return "backhand"
+            # Check if player is in a swing position
+            if not self._is_arm_extended(right_shoulder, right_elbow, right_wrist):
+                return "ready_stance"
             
-            elif right_arm_swing and not left_arm_swing:
-                # Right arm in swing position - likely forehand
-                if ball_position:
-                    ball_x, ball_y = ball_position
-                    if ball_x > player_x:  # Ball on right side
-                        return "forehand"
-                return "forehand"
+            # Get player body center (use shoulders for reference)
+            left_shoulder = keypoints.get(5)
+            if not left_shoulder:
+                # Use player_x as fallback
+                body_center_x = player_x
+            else:
+                # Calculate body center from shoulders
+                body_center_x = (left_shoulder[0] + right_shoulder[0]) / 2
             
-            elif left_arm_swing and right_arm_swing:
-                # Both arms in swing position - could be two-handed backhand
-                return "backhand"
+            # Determine shot type based on right hand position relative to body
+            right_hand_x = right_wrist[0]
             
-            return "ready_stance"
+            # Account for player orientation:
+            # Player 0 (bottom): Facing away from camera - normal orientation
+            # Player 1 (top): Facing toward camera - flipped orientation
+            if player_id == 1:
+                # Player facing camera: right hand on left side of video = forehand
+                # Right hand on right side of video = backhand
+                if right_hand_x < body_center_x - 15:  # Right hand on left side of video
+                    return "forehand"
+                else:  # Right hand on right side of video
+                    return "backhand"
+            else:
+                # Player facing away from camera: normal orientation
+                # Right hand on right side of body = forehand
+                # Right hand crossed to left side = backhand
+                if right_hand_x < body_center_x - 15:  # Right hand crossed over to left side
+                    return "backhand"
+                else:  # Right hand on natural right side
+                    return "forehand"
             
         except Exception as e:
             logger.debug(f"Error in groundstroke classification: {e}")
@@ -336,33 +354,58 @@ class EnhancedShotClassifier:
             return wrist_x < shoulder_x - 20  # At least 20 pixels to the left
     
     def _is_moving(self, player_bbox: List[int], player_id: int = 0) -> bool:
-        """Detect if player is moving based on bounding box changes"""
+        """Detect if player is moving based on bounding box changes over 15 frames"""
         try:
             # Get current player center
             x1, y1, x2, y2 = player_bbox
             current_center_x = (x1 + x2) / 2
             current_center_y = (y1 + y2) / 2
             
-            # Check if we have previous position for this player
-            if player_id in self.player_positions:
-                prev_center_x, prev_center_y = self.player_positions[player_id]
+            # Initialize position history for this player if needed
+            if player_id not in self.player_position_history:
+                self.player_position_history[player_id] = []
+            
+            # Add current position to history
+            self.player_position_history[player_id].append((current_center_x, current_center_y))
+            
+            # Keep only the last movement_window frames
+            if len(self.player_position_history[player_id]) > self.movement_window:
+                self.player_position_history[player_id] = self.player_position_history[player_id][-self.movement_window:]
+            
+            # Need at least 2 positions to calculate movement
+            if len(self.player_position_history[player_id]) < 2:
+                return True  # Default to moving until we have enough data
+            
+            # Calculate movement from first to last position in window
+            if len(self.player_position_history[player_id]) >= self.movement_window:
+                positions = self.player_position_history[player_id]
+                first_x, first_y = positions[0]
+                last_x, last_y = positions[-1]
+                window_movement = np.sqrt((last_x - first_x)**2 + (last_y - first_y)**2)
                 
-                # Calculate movement distance
-                movement_distance = np.sqrt((current_center_x - prev_center_x)**2 + (current_center_y - prev_center_y)**2)
+                # Adjust threshold based on player distance (further players move fewer pixels)
+                # Player 0 (bottom): closer to camera, normal threshold
+                # Player 1 (top): further from camera, lower threshold
+                if player_id == 1:
+                    # Further player - more sensitive to movement
+                    adjusted_threshold = self.movement_threshold * 0.6  # 60% of normal threshold
+                else:
+                    # Closer player - normal threshold
+                    adjusted_threshold = self.movement_threshold
                 
-                # Update position for next frame
-                self.player_positions[player_id] = (current_center_x, current_center_y)
+                # Player is moving if they've moved significantly over the window
+                is_moving = window_movement > adjusted_threshold
                 
-                # Return True if movement exceeds threshold
-                return movement_distance > self.movement_threshold
-            else:
-                # First time seeing this player, store position
-                self.player_positions[player_id] = (current_center_x, current_center_y)
-                return False
+                logger.debug(f"Player {player_id}: window_movement={window_movement:.1f}, threshold={adjusted_threshold:.1f}, moving={is_moving}")
+                return is_moving
+            
+            # Default to moving if we don't have enough frames yet
+            # In tennis, players are usually moving more than stationary
+            return True
             
         except Exception as e:
             logger.debug(f"Error in movement detection: {e}")
-            return False
+            return True  # Default to moving on error
     
     def _is_near_baseline(self, player_y: float, court_keypoints: List[Tuple]) -> bool:
         """Check if player is near baseline"""
@@ -415,8 +458,9 @@ class EnhancedShotClassifier:
     
     def _enforce_tennis_game_flow(self, shot_type: str, frame_number: int, 
                                 ball_position: Optional[List[int]] = None, 
-                                player_center: Optional[List[float]] = None) -> str:
-        """Enforce tennis game flow rules with ball proximity"""
+                                player_center: Optional[List[float]] = None, 
+                                player_id: int = 0) -> str:
+        """Enforce tennis game flow rules with ball proximity and shot persistence"""
         try:
             # Update frame counter
             self.current_frame = frame_number
@@ -429,7 +473,7 @@ class EnhancedShotClassifier:
                 
                 # Calculate distance between ball and player
                 distance = np.sqrt((ball_x - player_x)**2 + (ball_y - player_y)**2)
-                ball_near_player = distance < 250  # Within 250 pixels
+                ball_near_player = distance < 200  # Within 200 pixels (more restrictive)
             
             # Rule 1: Serve can only happen at the beginning of a point
             if shot_type == "serve":
@@ -442,27 +486,36 @@ class EnhancedShotClassifier:
                     self.last_shot_frame = frame_number
                     return "serve"
             
-            # Rule 2: Ball proximity rules
-            if ball_near_player:
-                # Ball is near player - must be hitting a shot
-                if shot_type in ["forehand", "backhand", "overhead_smash"]:
-                    # Valid stroke, update last shot frame
-                    self.last_shot_frame = frame_number
-                    return shot_type
-                else:
-                    # Ball is near but not hitting - force a stroke type
-                    # This could be enhanced with better pose analysis
-                    return "forehand"  # Default to forehand when ball is near
-            else:
-                # Ball is far from player - must be ready stance or moving
-                if shot_type in ["forehand", "backhand", "overhead_smash"]:
-                    # Can't be hitting if ball is far away
-                    return "ready_stance"
-                else:
-                    # Valid non-stroke state
-                    return shot_type
+            # Rule 2: Shot persistence - if we're in the middle of a shot, continue it
+            if player_id in self.current_shot_type and player_id in self.shot_start_frame:
+                current_shot = self.current_shot_type[player_id]
+                shot_start = self.shot_start_frame[player_id]
+                frames_in_shot = frame_number - shot_start
+                
+                # If we're in a shot and it hasn't been too long, persist the shot
+                if current_shot in ["forehand", "backhand", "overhead_smash"] and frames_in_shot < self.shot_persistence_frames:
+                    return current_shot
             
-            # Rule 3: Strokes must be separated by ready stance or movement
+            # Rule 3: Only classify shots when ball is near player
+            if not ball_near_player:
+                # Ball is far away - can't be hitting a shot
+                if shot_type in ["forehand", "backhand", "overhead_smash"]:
+                    # Clear any ongoing shot
+                    if player_id in self.current_shot_type:
+                        del self.current_shot_type[player_id]
+                    if player_id in self.shot_start_frame:
+                        del self.shot_start_frame[player_id]
+                    return "ready_stance"
+            
+            # Rule 4: Start a new shot when ball is near and pose indicates hitting
+            if ball_near_player and shot_type in ["forehand", "backhand", "overhead_smash"]:
+                # Start tracking this shot
+                self.current_shot_type[player_id] = shot_type
+                self.shot_start_frame[player_id] = frame_number
+                self.last_shot_frame = frame_number
+                return shot_type
+            
+            # Rule 5: Strokes must be separated by ready stance or movement
             if shot_type in ["forehand", "backhand", "overhead_smash"]:
                 # Check if we had a stroke recently without transition
                 if len(self.shot_history) > 0:
@@ -477,8 +530,13 @@ class EnhancedShotClassifier:
                 self.last_shot_frame = frame_number
                 return shot_type
             
-            # Rule 4: Ready stance or movement can happen anytime
+            # Rule 6: Ready stance or movement can happen anytime
             if shot_type in ["ready_stance", "moving"]:
+                # Clear any ongoing shot when transitioning to non-shot states
+                if player_id in self.current_shot_type:
+                    del self.current_shot_type[player_id]
+                if player_id in self.shot_start_frame:
+                    del self.shot_start_frame[player_id]
                 return shot_type
             
             # Default case
