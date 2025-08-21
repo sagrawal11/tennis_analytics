@@ -105,7 +105,7 @@ class EnhancedShotClassifier:
             player_center = [player_center_x, player_center_y]
             final_shot_type = self._enforce_tennis_game_flow(smoothed_shot_type, frame_number, ball_position, player_center, player_id)
             
-            logger.debug(f"🎾 Shot classification: {shot_type} -> {smoothed_shot_type} -> {final_shot_type}")
+            logger.info(f"🎾 Player {player_id} Frame {frame_number}: {shot_type} -> {smoothed_shot_type} -> {final_shot_type}")
             return final_shot_type
             
         except Exception as e:
@@ -385,10 +385,10 @@ class EnhancedShotClassifier:
                 
                 # Adjust threshold based on player distance (further players move fewer pixels)
                 # Player 0 (bottom): closer to camera, normal threshold
-                # Player 1 (top): further from camera, lower threshold
+                # Player 1 (top): further from camera, much more sensitive threshold
                 if player_id == 1:
-                    # Further player - more sensitive to movement
-                    adjusted_threshold = self.movement_threshold * 0.6  # 60% of normal threshold
+                    # Further player - extremely sensitive to movement
+                    adjusted_threshold = self.movement_threshold * 0.1  # 10% of normal threshold (2.5 pixels)
                 else:
                     # Closer player - normal threshold
                     adjusted_threshold = self.movement_threshold
@@ -396,7 +396,7 @@ class EnhancedShotClassifier:
                 # Player is moving if they've moved significantly over the window
                 is_moving = window_movement > adjusted_threshold
                 
-                logger.debug(f"Player {player_id}: window_movement={window_movement:.1f}, threshold={adjusted_threshold:.1f}, moving={is_moving}")
+                logger.info(f"🚶 Player {player_id}: window_movement={window_movement:.1f}, threshold={adjusted_threshold:.1f}, moving={is_moving}")
                 return is_moving
             
             # Default to moving if we don't have enough frames yet
