@@ -109,6 +109,40 @@ class TennisAnalyticsViewer:
         # Initialize display
         self.setup_display()
         
+    def _initialize_video_writer(self):
+        """Initialize video writer if output path is specified"""
+        if not self.output_path:
+            return
+        
+        try:
+            # Define codec and create VideoWriter object
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            fps = 30.0  # Match the original video FPS
+            frame_size = (self.frame_width, self.frame_height)
+            
+            self.video_writer = cv2.VideoWriter(
+                self.output_path,
+                fourcc,
+                fps,
+                frame_size
+            )
+            
+            if self.video_writer.isOpened():
+                logger.info(f"✅ Video writer initialized: {self.output_path}")
+            else:
+                logger.error(f"❌ Failed to initialize video writer: {self.output_path}")
+                self.video_writer = None
+                
+        except Exception as e:
+            logger.error(f"Error initializing video writer: {e}")
+            self.video_writer = None
+    
+    def _release_video_writer(self):
+        """Release video writer resources"""
+        if self.video_writer:
+            self.video_writer.release()
+            logger.info(f"✅ Video saved: {self.output_path}")
+        
     def _load_config(self, config_path: str) -> Dict[str, Any]:
         """Load configuration from YAML file"""
         try:
@@ -537,6 +571,9 @@ class TennisAnalyticsViewer:
             logger.error("Failed to load CSV data. Make sure tennis_CV.py has finished running.")
             return
         
+        # Initialize video writer if output path is specified
+        self._initialize_video_writer()
+        
         last_frame_time = time.time()
         frame_interval = 1.0 / 30.0  # 30 FPS default
         
@@ -555,6 +592,10 @@ class TennisAnalyticsViewer:
                 
                 # Render frame
                 frame = self.render_frame()
+                
+                # Write frame to video if output is enabled
+                if self.video_writer and self.video_writer.isOpened():
+                    self.video_writer.write(frame)
                 
                 # Display frame
                 cv2.imshow('Tennis Analytics Viewer', frame)
@@ -586,6 +627,8 @@ class TennisAnalyticsViewer:
         except KeyboardInterrupt:
             logger.info("Analytics viewer interrupted by user")
         finally:
+            # Release video writer
+            self._release_video_writer()
             cv2.destroyAllWindows()
             logger.info("Analytics viewer closed")
 
@@ -598,11 +641,13 @@ def main():
                        help="Path to CSV data file")
     parser.add_argument("--width", type=int, default=1280, help="Window width")
     parser.add_argument("--height", type=int, default=720, help="Window height")
+    parser.add_argument("--output", "-o", type=str, default=None,
+                       help="Output video file path (optional)")
     
     args = parser.parse_args()
     
     # Create and run analytics viewer
-    viewer = TennisAnalyticsViewer(args.width, args.height)
+    viewer = TennisAnalyticsViewer(output_path=args.output)
     
     if viewer.load_csv_data(args.csv):
         logger.info(f"✅ Loaded CSV data: {args.csv}")

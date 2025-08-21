@@ -114,7 +114,8 @@ class TennisMasterController:
         try:
             cmd = [
                 sys.executable, "tennis_analytics.py",
-                "--config", self.config_path
+                "--config", self.config_path,
+                "--output", "tennis_analytics_output.mp4"
             ]
             
             logger.info("📊 Starting analytics viewer...")
