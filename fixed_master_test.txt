@@ -1,0 +1,126 @@
+INFO:__main__:✅ All required files verified
+INFO:__main__:🎾 TENNIS MASTER CONTROLLER STARTING...
+INFO:__main__:📹 Video: tennis_test5.mp4
+INFO:__main__:⚙️  Config: config.yaml
+INFO:__main__:🚀 Launching CV processing first...
+INFO:__main__:🚀 Starting CV viewer...
+INFO:__main__:Command: /Users/sarthak/Desktop/App Projects/tennis_analytics/tennis_env/bin/python3 tennis_CV.py --video tennis_test5.mp4 --config config.yaml --output tennis_analysis_output.mp4
+INFO:__main__:🔧 Environment variables:
+INFO:__main__:   PYTORCH_ENABLE_MPS_FALLBACK: 1
+INFO:__main__:   PYTHONPATH: /Users/sarthak/Desktop/App Projects/tennis_analytics:
+INFO:__main__:   Working directory: /Users/sarthak/Desktop/App Projects/tennis_analytics
+INFO:__main__:✅ CV viewer started (PID: 94924)
+INFO:__main__:🎬 CV viewer started. Processing video...
+INFO:__main__:📺 CV window should be open showing real-time processing
+INFO:__main__:⏳ Waiting for CV processing to complete...
+INFO:__main__:✅ CV process progressing... Frame 6 completed
+INFO:__main__:⏳ CV process running... Time: 5s, Frames processed: 6
+INFO:__main__:📊 CSV has 7 lines, Process status: None
+INFO:__main__:✅ Process health: Healthy (CPU: 0.0%, Memory: 279.7MB, CSV: 7 lines)
+INFO:__main__:⏳ CV process running... Time: 10s, Frames processed: 6
+INFO:__main__:📊 CSV has 7 lines, Process status: None
+INFO:__main__:✅ Process health: Healthy (CPU: 0.0%, Memory: 381.7MB, CSV: 7 lines)
+WARNING:__main__:⚠️ CV process appears stuck! No progress for 11 seconds
+WARNING:__main__:⚠️ Last CSV count: 7, stuck since frame 6
+WARNING:__main__:⚠️ CV process appears stuck! No progress for 12 seconds
+WARNING:__main__:⚠️ Last CSV count: 7, stuck since frame 6
+INFO:__main__:⏳ CV process running... Time: 15s, Frames processed: 0
+INFO:__main__:📊 CSV has 1 lines, Process status: None
+INFO:__main__:✅ Process health: Healthy (CPU: 0.0%, Memory: 635.9MB, CSV: 1 lines)
+INFO:__main__:⏳ CV process running... Time: 20s, Frames processed: 0
+INFO:__main__:📊 CSV has 1 lines, Process status: None
+INFO:__main__:✅ Process health: Healthy (CPU: 0.0%, Memory: 536.2MB, CSV: 1 lines)
+INFO:__main__:✅ CV process progressing... Frame 1 completed
+INFO:__main__:⏳ CV process running... Time: 25s, Frames processed: 1
+INFO:__main__:📊 CSV has 2 lines, Process status: None
+INFO:__main__:✅ Process health: Healthy (CPU: 0.0%, Memory: 362.5MB, CSV: 2 lines)
+INFO:__main__:✅ CV process progressing... Frame 2 completed
+INFO:__main__:⏳ CV process running... Time: 30s, Frames processed: 2
+INFO:__main__:📊 CSV has 3 lines, Process status: None
+INFO:__main__:✅ Process health: Healthy (CPU: 0.0%, Memory: 762.0MB, CSV: 3 lines)
+INFO:__main__:✅ CV process progressing... Frame 3 completed
+INFO:__main__:⏳ CV process running... Time: 35s, Frames processed: 3
+INFO:__main__:📊 CSV has 4 lines, Process status: None
+INFO:__main__:✅ Process health: Healthy (CPU: 0.0%, Memory: 1059.2MB, CSV: 4 lines)
+INFO:__main__:✅ CV process progressing... Frame 4 completed
+INFO:__main__:⏳ CV process running... Time: 40s, Frames processed: 4
+INFO:__main__:📊 CSV has 5 lines, Process status: None
+INFO:__main__:✅ Process health: Healthy (CPU: 0.0%, Memory: 1123.3MB, CSV: 5 lines)
+INFO:__main__:✅ CV process progressing... Frame 5 completed
+INFO:__main__:✅ CV process progressing... Frame 6 completed
+INFO:__main__:⏳ CV process running... Time: 45s, Frames processed: 6
+INFO:__main__:📊 CSV has 7 lines, Process status: None
+INFO:__main__:✅ Process health: Healthy (CPU: 0.0%, Memory: 1158.9MB, CSV: 7 lines)
+INFO:__main__:⏳ CV process running... Time: 50s, Frames processed: 6
+INFO:__main__:📊 CSV has 7 lines, Process status: None
+INFO:__main__:✅ Process health: Healthy (CPU: 0.0%, Memory: 1177.5MB, CSV: 7 lines)
+INFO:__main__:⏳ CV process running... Time: 55s, Frames processed: 6
+INFO:__main__:📊 CSV has 7 lines, Process status: None
+INFO:__main__:✅ Process health: Healthy (CPU: 0.0%, Memory: 1177.5MB, CSV: 7 lines)
+WARNING:__main__:⚠️ CV process appears stuck! No progress for 11 seconds
+WARNING:__main__:⚠️ Last CSV count: 7, stuck since frame 6
+WARNING:__main__:⚠️ CV process appears stuck! No progress for 12 seconds
+WARNING:__main__:⚠️ Last CSV count: 7, stuck since frame 6
+WARNING:__main__:⚠️ CV process appears stuck! No progress for 13 seconds
+WARNING:__main__:⚠️ Last CSV count: 7, stuck since frame 6
+WARNING:__main__:⚠️ CV process appears stuck! No progress for 14 seconds
+WARNING:__main__:⚠️ Last CSV count: 7, stuck since frame 6
+WARNING:__main__:⚠️ CV process appears stuck! No progress for 15 seconds
+WARNING:__main__:⚠️ Last CSV count: 7, stuck since frame 6
+INFO:__main__:⏳ CV process running... Time: 60s, Frames processed: 6
+INFO:__main__:📊 CSV has 7 lines, Process status: None
+INFO:__main__:✅ Process health: Healthy (CPU: 0.0%, Memory: 1154.6MB, CSV: 7 lines)
+WARNING:__main__:⚠️ CV process appears stuck! No progress for 16 seconds
+WARNING:__main__:⚠️ Last CSV count: 7, stuck since frame 6
+WARNING:__main__:⚠️ CV process appears stuck! No progress for 17 seconds
+WARNING:__main__:⚠️ Last CSV count: 7, stuck since frame 6
+WARNING:__main__:⚠️ CV process appears stuck! No progress for 18 seconds
+WARNING:__main__:⚠️ Last CSV count: 7, stuck since frame 6
+WARNING:__main__:⚠️ CV process appears stuck! No progress for 19 seconds
+WARNING:__main__:⚠️ Last CSV count: 7, stuck since frame 6
+WARNING:__main__:⚠️ CV process appears stuck! No progress for 20 seconds
+WARNING:__main__:⚠️ Last CSV count: 7, stuck since frame 6
+INFO:__main__:⏳ CV process running... Time: 65s, Frames processed: 6
+INFO:__main__:📊 CSV has 7 lines, Process status: None
+INFO:__main__:✅ Process health: Healthy (CPU: 0.0%, Memory: 1068.3MB, CSV: 7 lines)
+WARNING:__main__:⚠️ CV process appears stuck! No progress for 21 seconds
+WARNING:__main__:⚠️ Last CSV count: 7, stuck since frame 6
+WARNING:__main__:⚠️ CV process appears stuck! No progress for 22 seconds
+WARNING:__main__:⚠️ Last CSV count: 7, stuck since frame 6
+WARNING:__main__:⚠️ CV process appears stuck! No progress for 23 seconds
+WARNING:__main__:⚠️ Last CSV count: 7, stuck since frame 6
+WARNING:__main__:⚠️ CV process appears stuck! No progress for 24 seconds
+WARNING:__main__:⚠️ Last CSV count: 7, stuck since frame 6
+WARNING:__main__:⚠️ CV process appears stuck! No progress for 25 seconds
+WARNING:__main__:⚠️ Last CSV count: 7, stuck since frame 6
+INFO:__main__:⏳ CV process running... Time: 70s, Frames processed: 6
+INFO:__main__:📊 CSV has 7 lines, Process status: None
+INFO:__main__:✅ Process health: Healthy (CPU: 0.0%, Memory: 1068.3MB, CSV: 7 lines)
+WARNING:__main__:⚠️ CV process appears stuck! No progress for 26 seconds
+WARNING:__main__:⚠️ Last CSV count: 7, stuck since frame 6
+WARNING:__main__:⚠️ CV process appears stuck! No progress for 27 seconds
+WARNING:__main__:⚠️ Last CSV count: 7, stuck since frame 6
+WARNING:__main__:⚠️ CV process appears stuck! No progress for 28 seconds
+WARNING:__main__:⚠️ Last CSV count: 7, stuck since frame 6
+WARNING:__main__:⚠️ CV process appears stuck! No progress for 29 seconds
+WARNING:__main__:⚠️ Last CSV count: 7, stuck since frame 6
+WARNING:__main__:⚠️ CV process appears stuck! No progress for 30 seconds
+WARNING:__main__:⚠️ Last CSV count: 7, stuck since frame 6
+INFO:__main__:⏳ CV process running... Time: 75s, Frames processed: 6
+INFO:__main__:📊 CSV has 7 lines, Process status: None
+INFO:__main__:✅ Process health: Healthy (CPU: 0.0%, Memory: 1068.3MB, CSV: 7 lines)
+WARNING:__main__:⚠️ CV process appears stuck! No progress for 31 seconds
+WARNING:__main__:⚠️ Last CSV count: 7, stuck since frame 6
+WARNING:__main__:⚠️ CV process appears stuck! No progress for 32 seconds
+WARNING:__main__:⚠️ Last CSV count: 7, stuck since frame 6
+WARNING:__main__:⚠️ CV process appears stuck! No progress for 33 seconds
+WARNING:__main__:⚠️ Last CSV count: 7, stuck since frame 6
+WARNING:__main__:⚠️ CV process appears stuck! No progress for 34 seconds
+WARNING:__main__:⚠️ Last CSV count: 7, stuck since frame 6
+WARNING:__main__:⚠️ CV process appears stuck! No progress for 35 seconds
+WARNING:__main__:⚠️ Last CSV count: 7, stuck since frame 6
+INFO:__main__:⏳ CV process running... Time: 80s, Frames processed: 6
+INFO:__main__:📊 CSV has 7 lines, Process status: None
+INFO:__main__:✅ Process health: Healthy (CPU: 0.0%, Memory: 1068.3MB, CSV: 7 lines)
+WARNING:__main__:⚠️ CV process appears stuck! No progress for 36 seconds
+WARNING:__main__:⚠️ Last CSV count: 7, stuck since frame 6

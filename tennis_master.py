@@ -92,14 +92,23 @@ class TennisMasterController:
             env = os.environ.copy()
             env['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
             
+            # Add additional environment variables for better subprocess compatibility
+            env['PYTHONPATH'] = os.getcwd() + ':' + env.get('PYTHONPATH', '')
+            env['CUDA_VISIBLE_DEVICES'] = ''  # Force CPU usage if CUDA is available
+            
+            logger.info(f"🔧 Environment variables:")
+            logger.info(f"   PYTORCH_ENABLE_MPS_FALLBACK: {env.get('PYTORCH_ENABLE_MPS_FALLBACK')}")
+            logger.info(f"   PYTHONPATH: {env.get('PYTHONPATH')}")
+            logger.info(f"   Working directory: {os.getcwd()}")
+            
+            # Run CV process without capturing output to avoid subprocess issues
+            # This allows OpenCV windows and user input to work properly
             self.cv_process = subprocess.Popen(
                 cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                bufsize=1,
-                universal_newlines=True,
-                env=env
+                stdout=None,  # Don't capture stdout - let it display normally
+                stderr=None,  # Don't capture stderr - let it display normally
+                env=env,
+                cwd=os.getcwd()  # Ensure working directory is correct
             )
             
             logger.info(f"✅ CV viewer started (PID: {self.cv_process.pid})")
@@ -114,20 +123,18 @@ class TennisMasterController:
         try:
             cmd = [
                 sys.executable, "tennis_analytics.py",
-                "--config", self.config_path,
+                "--csv", "tennis_analysis_data.csv",
                 "--output", "tennis_analytics_output.mp4"
             ]
             
             logger.info("📊 Starting analytics viewer...")
             logger.info(f"Command: {' '.join(cmd)}")
             
+            # Run analytics process without capturing output to avoid subprocess issues
             self.analytics_process = subprocess.Popen(
                 cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                bufsize=1,
-                universal_newlines=True
+                stdout=None,  # Don't capture stdout - let it display normally
+                stderr=None,  # Don't capture stderr - let it display normally
             )
             
             logger.info(f"✅ Analytics viewer started (PID: {self.analytics_process.pid})")
@@ -189,6 +196,35 @@ class TennisMasterController:
         logger.info("✅ Tennis master shutdown complete")
         sys.exit(0)
     
+    def _get_csv_line_count(self):
+        """Get the current number of lines in the CSV file with file locking"""
+        try:
+            if Path('tennis_analysis_data.csv').exists():
+                try:
+                    import fcntl
+                    with open('tennis_analysis_data.csv', 'r') as f:
+                        # Acquire shared lock for reading
+                        fcntl.flock(f.fileno(), fcntl.LOCK_SH)
+                        lines = f.readlines()
+                        # Release lock
+                        fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+                        return len(lines)
+                except ImportError:
+                    # fcntl not available on Windows, use regular file operations
+                    with open('tennis_analysis_data.csv', 'r') as f:
+                        return len(f.readlines())
+                except Exception as e:
+                    logger.warning(f"File locking error: {e}")
+                    # Fallback to regular file operations
+                    with open('tennis_analysis_data.csv', 'r') as f:
+                        return len(f.readlines())
+            return 0
+        except Exception as e:
+            logger.warning(f"Error reading CSV: {e}")
+            return 0
+    
+
+    
     def run(self):
         """Run the master controller"""
         logger.info("🎾 TENNIS MASTER CONTROLLER STARTING...")
@@ -212,9 +248,60 @@ class TennisMasterController:
             logger.info("📺 CV window should be open showing real-time processing")
             logger.info("⏳ Waiting for CV processing to complete...")
             
-            # Wait for CV process to complete
+            # Wait for CV process to complete WITHOUT touching the CSV
+            # This prevents any interference with the CV process
+            logger.info("🔒 CV process is running - CSV file is LOCKED for writing only")
+            logger.info("⏳ Waiting for CV process to complete completely...")
+            
+            start_time = time.time()
             while self.cv_process and self.cv_process.poll() is None:
                 time.sleep(1)
+                elapsed_time = int(time.time() - start_time)
+                
+                # Add timeout protection (40 minutes max for full video processing)
+                if elapsed_time > 2400:
+                    logger.error("⏰ CV process timeout after 20 minutes! Terminating...")
+                    self.cv_process.terminate()
+                    try:
+                        self.cv_process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        logger.warning("CV process didn't terminate gracefully, forcing...")
+                        self.cv_process.kill()
+                    break
+                
+                # Show simple progress without CSV access
+                if elapsed_time % 10 == 0:
+                    logger.info(f"⏳ CV process still running... Time elapsed: {elapsed_time}s")
+                    
+                    # Simple process health check (no CSV access)
+                    if self.cv_process:
+                        try:
+                            import psutil
+                            process = psutil.Process(self.cv_process.pid)
+                            cpu_percent = process.cpu_percent()
+                            memory_mb = process.memory_info().rss / 1024 / 1024
+                            logger.info(f"🔍 Process status: CPU {cpu_percent:.1f}%, Memory {memory_mb:.1f}MB")
+                        except ImportError:
+                            logger.info(f"🔍 Process status: {self.cv_process.poll()}")
+            
+            # CV process has completed - now we can safely read the CSV
+            if self.cv_process:
+                exit_code = self.cv_process.returncode
+                logger.info(f"✅ CV processing completed with exit code: {exit_code}")
+                
+                # Now safely read the final CSV to show results
+                if Path('tennis_analysis_data.csv').exists():
+                    try:
+                        with open('tennis_analysis_data.csv', 'r') as f:
+                            lines = f.readlines()
+                            if len(lines) > 1:
+                                logger.info(f"📊 Final CSV results: {len(lines)-1} frames processed successfully!")
+                            else:
+                                logger.warning(f"⚠️ CSV only has {len(lines)} lines - CV process may have failed")
+                    except Exception as e:
+                        logger.error(f"❌ Error reading final CSV: {e}")
+                else:
+                    logger.error("❌ CSV file not found after CV completion")
             
             if self.cv_process:
                 exit_code = self.cv_process.returncode

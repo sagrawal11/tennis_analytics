@@ -1,0 +1,1081 @@
+INFO:__main__:✅ All required files verified
+INFO:__main__:🎾 TENNIS MASTER CONTROLLER STARTING...
+INFO:__main__:📹 Video: tennis_test5.mp4
+INFO:__main__:⚙️  Config: config.yaml
+INFO:__main__:🚀 Launching CV processing first...
+INFO:__main__:🚀 Starting CV viewer...
+INFO:__main__:Command: /Users/sarthak/Desktop/App Projects/tennis_analytics/tennis_env/bin/python3 tennis_CV.py --video tennis_test5.mp4 --config config.yaml --output tennis_analysis_output.mp4
+INFO:__main__:✅ CV viewer started (PID: 93757)
+INFO:__main__:🎬 CV viewer started. Processing video...
+INFO:__main__:📺 CV window should be open showing real-time processing
+INFO:__main__:⏳ Waiting for CV processing to complete...
+INFO:__main__:⏳ CV process still running... (frame 1)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 2)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 3)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 4)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 5)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 6)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 7)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 8)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 9)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 10)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 11)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 12)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 13)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 14)
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 15)
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 16)
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 17)
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 18)
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 19)
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 20)
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 21)
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 22)
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 23)
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 24)
+INFO:__main__:📊 CSV has 1 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 25)
+INFO:__main__:📊 CSV has 1 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 26)
+INFO:__main__:📊 CSV has 1 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 27)
+INFO:__main__:📊 CSV has 1 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 28)
+INFO:__main__:📊 CSV has 1 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 29)
+INFO:__main__:📊 CSV has 1 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 30)
+INFO:__main__:📊 CSV has 2 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 31)
+INFO:__main__:📊 CSV has 2 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 32)
+INFO:__main__:📊 CSV has 2 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 33)
+INFO:__main__:📊 CSV has 2 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 34)
+INFO:__main__:📊 CSV has 2 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 35)
+INFO:__main__:📊 CSV has 2 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 36)
+INFO:__main__:📊 CSV has 3 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 37)
+INFO:__main__:📊 CSV has 3 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 38)
+INFO:__main__:📊 CSV has 3 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 39)
+INFO:__main__:📊 CSV has 3 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 40)
+INFO:__main__:📊 CSV has 3 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 41)
+INFO:__main__:📊 CSV has 3 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 42)
+INFO:__main__:📊 CSV has 4 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 43)
+INFO:__main__:📊 CSV has 4 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 44)
+INFO:__main__:📊 CSV has 4 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 45)
+INFO:__main__:📊 CSV has 4 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 46)
+INFO:__main__:📊 CSV has 5 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 47)
+INFO:__main__:📊 CSV has 5 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 48)
+INFO:__main__:📊 CSV has 5 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 49)
+INFO:__main__:📊 CSV has 5 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 50)
+INFO:__main__:📊 CSV has 5 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 51)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 52)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 53)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 54)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 55)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 56)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 57)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 58)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 59)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 60)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 61)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 62)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 63)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 64)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 65)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 66)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 67)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 68)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 69)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 70)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 71)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 72)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 73)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 74)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 75)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 76)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 77)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 78)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 79)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 80)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 81)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 82)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 83)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 84)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 85)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 86)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 87)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 88)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 89)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 90)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 91)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 92)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 93)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 94)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 95)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 96)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 97)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 98)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 99)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 100)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 101)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 102)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 103)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 104)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 105)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 106)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 107)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 108)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 109)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 110)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 111)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 112)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 113)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 114)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 115)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 116)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 117)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 118)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 119)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 120)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 121)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 122)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 123)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 124)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 125)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 126)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 127)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 128)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 129)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 130)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 131)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 132)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 133)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 134)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 135)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 136)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 137)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 138)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 139)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 140)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 141)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 142)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 143)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 144)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 145)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 146)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 147)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 148)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 149)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 150)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 151)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 152)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 153)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 154)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 155)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 156)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 157)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 158)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 159)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 160)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 161)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 162)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 163)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 164)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 165)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 166)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 167)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 168)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 169)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 170)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 171)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 172)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 173)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 174)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 175)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 176)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 177)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 178)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 179)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 180)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 181)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 182)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 183)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 184)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 185)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 186)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 187)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 188)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 189)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 190)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 191)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 192)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 193)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 194)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 195)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 196)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 197)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 198)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 199)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 200)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 201)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 202)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 203)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 204)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 205)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 206)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 207)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 208)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 209)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 210)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 211)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 212)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 213)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 214)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 215)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 216)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 217)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 218)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 219)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 220)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 221)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 222)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 223)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 224)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 225)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 226)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 227)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 228)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 229)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 230)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 231)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 232)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 233)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 234)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 235)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 236)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 237)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 238)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 239)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 240)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 241)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 242)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 243)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 244)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 245)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 246)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 247)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 248)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 249)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 250)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 251)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 252)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 253)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 254)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 255)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 256)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 257)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 258)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 259)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 260)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 261)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 262)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 263)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 264)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 265)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 266)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 267)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 268)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 269)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 270)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 271)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 272)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 273)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 274)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 275)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 276)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 277)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 278)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 279)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 280)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 281)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 282)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 283)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 284)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 285)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 286)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 287)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 288)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 289)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 290)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 291)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 292)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 293)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 294)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 295)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 296)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 297)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 298)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 299)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 300)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 301)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 302)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 303)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 304)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 305)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 306)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 307)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 308)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 309)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 310)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 311)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 312)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 313)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 314)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 315)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 316)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 317)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 318)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 319)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 320)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 321)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 322)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 323)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 324)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 325)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 326)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 327)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 328)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 329)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 330)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 331)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 332)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 333)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 334)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 335)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 336)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 337)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 338)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 339)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 340)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 341)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 342)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 343)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 344)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 345)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 346)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 347)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 348)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 349)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 350)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 351)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 352)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 353)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 354)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 355)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 356)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 357)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 358)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 359)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None
+INFO:__main__:⏳ CV process still running... (frame 360)
+INFO:__main__:📊 CSV has 6 data lines
+INFO:__main__:🔍 CV process status: None

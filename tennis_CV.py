@@ -804,9 +804,27 @@ class TennisAnalysisDemo:
                 str(frame_data.get('detection_source', 'unknown'))
             ]
             
-            # Write to CSV file
-            with open('tennis_analysis_data.csv', 'a') as f:
-                f.write(','.join(csv_line) + '\n')
+            # Write to CSV file with file locking to prevent corruption
+            try:
+                import fcntl
+                with open('tennis_analysis_data.csv', 'a') as f:
+                    # Acquire exclusive lock for writing
+                    fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                    f.write(','.join(csv_line) + '\n')
+                    f.flush()  # Ensure data is written to disk
+                    # Release lock
+                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+            except ImportError:
+                # fcntl not available on Windows, use regular file operations
+                with open('tennis_analysis_data.csv', 'a') as f:
+                    f.write(','.join(csv_line) + '\n')
+                    f.flush()
+            except Exception as e:
+                logger.error(f"File locking error: {e}")
+                # Fallback to regular file operations
+                with open('tennis_analysis_data.csv', 'a') as f:
+                    f.write(','.join(csv_line) + '\n')
+                    f.flush()
                 
         except Exception as e:
             logger.debug(f"Error outputting frame data: {e}")
@@ -821,8 +839,27 @@ class TennisAnalysisDemo:
                 'detection_source'  # NEW: RF-DETR vs YOLO fallback
             ]
             
-            with open('tennis_analysis_data.csv', 'w') as f:
-                f.write(','.join(headers) + '\n')
+            # Initialize CSV file with file locking to prevent conflicts
+            try:
+                import fcntl
+                with open('tennis_analysis_data.csv', 'w') as f:
+                    # Acquire exclusive lock for writing
+                    fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                    f.write(','.join(headers) + '\n')
+                    f.flush()  # Ensure data is written to disk
+                    # Release lock
+                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+            except ImportError:
+                # fcntl not available on Windows, use regular file operations
+                with open('tennis_analysis_data.csv', 'w') as f:
+                    f.write(','.join(headers) + '\n')
+                    f.flush()
+            except Exception as e:
+                logger.error(f"File locking error during initialization: {e}")
+                # Fallback to regular file operations
+                with open('tennis_analysis_data.csv', 'w') as f:
+                    f.write(','.join(headers) + '\n')
+                    f.flush()
                 
         except Exception as e:
             logger.error(f"Error initializing CSV: {e}")
@@ -1724,56 +1761,85 @@ class RFDETRPlayerDetector:
     
     def detect_players(self, frame: np.ndarray) -> List[Dict[str, Any]]:
         if not self.model:
+            logger.warning("🔍 RF-DETR: Model not available")
             return []
         
         try:
+            logger.info("🔍 RF-DETR: Starting player detection...")
+            logger.info(f"🔍 RF-DETR: Input frame shape: {frame.shape}")
+            
             # Convert BGR to RGB and to PIL
+            logger.info("🔍 RF-DETR: Converting BGR to RGB...")
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            logger.info("🔍 RF-DETR: BGR to RGB conversion completed")
+            
             from PIL import Image
+            logger.info("🔍 RF-DETR: Converting to PIL Image...")
             pil_image = Image.fromarray(frame_rgb)
+            logger.info(f"🔍 RF-DETR: PIL Image created, size: {pil_image.size}")
             
             # Run inference
+            logger.info("🔍 RF-DETR: Starting model inference...")
+            logger.info(f"🔍 RF-DETR: Using threshold: {self.config.get('player_conf_threshold', 0.3)}")
             detections = self.model.predict(pil_image, threshold=self.config.get('player_conf_threshold', 0.3))
+            logger.info("🔍 RF-DETR: Model inference completed")
+            logger.info(f"🔍 RF-DETR: Raw detections: {len(detections.xyxy) if hasattr(detections, 'xyxy') else 'No xyxy attribute'}")
             
             # Filter for players only
             players = []
-            for i in range(len(detections.xyxy)):
-                bbox = detections.xyxy[i]
-                confidence = detections.confidence[i]
-                class_id = detections.class_id[i]
-                
-                # Only keep players (class_id == 2 for 'player' based on our model)
-                if class_id == 2 and confidence > self.config.get('player_conf_threshold', 0.3):
-                    x1, y1, x2, y2 = bbox
-                    bbox_center_x = (x1 + x2) / 2
-                    bbox_center_y = (y1 + y2) / 2
+            logger.info("🔍 RF-DETR: Filtering detections for players...")
+            
+            if hasattr(detections, 'xyxy') and len(detections.xyxy) > 0:
+                for i in range(len(detections.xyxy)):
+                    logger.info(f"🔍 RF-DETR: Processing detection {i+1}/{len(detections.xyxy)}...")
+                    bbox = detections.xyxy[i]
+                    confidence = detections.confidence[i]
+                    class_id = detections.class_id[i]
                     
-                    # Court position scoring - players should be in center area
-                    frame_center_x = frame.shape[1] / 2
-                    frame_center_y = frame.shape[0] / 2
-                    distance_from_center = abs(bbox_center_x - frame_center_x) + abs(bbox_center_y - frame_center_y)
+                    logger.info(f"🔍 RF-DETR: Detection {i+1} - bbox: {bbox}, confidence: {confidence}, class_id: {class_id}")
                     
-                    # Combined score: confidence + court position
-                    court_score = confidence - (distance_from_center / 2000)
-                    
-                    detection = {
-                        'bbox': [int(x1), int(y1), int(x2), int(y2)],
-                        'confidence': float(confidence),
-                        'class': int(class_id),
-                        'center': [int(bbox_center_x), int(bbox_center_y)],
-                        'court_score': court_score
-                    }
-                    players.append(detection)
+                    # Only keep players (class_id == 2 for 'player' based on our model)
+                    if class_id == 2 and confidence > self.config.get('player_conf_threshold', 0.3):
+                        logger.info(f"🔍 RF-DETR: Detection {i+1} is a valid player")
+                        x1, y1, x2, y2 = bbox
+                        bbox_center_x = (x1 + x2) / 2
+                        bbox_center_y = (y1 + y2) / 2
+                        
+                        # Court position scoring - players should be in center area
+                        frame_center_x = frame.shape[1] / 2
+                        frame_center_y = frame.shape[0] / 2
+                        distance_from_center = abs(bbox_center_x - frame_center_x) + abs(bbox_center_y - frame_center_y)
+                        
+                        # Combined score: confidence + court position
+                        court_score = confidence - (distance_from_center / 2000)
+                        
+                        detection = {
+                            'bbox': [int(x1), int(y1), int(x2), int(y2)],
+                            'confidence': float(confidence),
+                            'class': int(class_id),
+                            'center': [int(bbox_center_x), int(bbox_center_y)],
+                            'court_score': court_score
+                        }
+                        players.append(detection)
+                        logger.info(f"🔍 RF-DETR: Player {len(players)} added: bbox={detection['bbox']}, confidence={detection['confidence']:.3f}")
+                    else:
+                        logger.info(f"🔍 RF-DETR: Detection {i+1} filtered out (class_id: {class_id}, confidence: {confidence})")
+            else:
+                logger.info("🔍 RF-DETR: No detections found in model output")
             
             # Sort by court score and keep top 2 players
+            logger.info(f"🔍 RF-DETR: Sorting {len(players)} players by court score...")
             players.sort(key=lambda x: x['court_score'], reverse=True)
             players = players[:self.config.get('max_players', 2)]
+            logger.info(f"🔍 RF-DETR: Final player count: {len(players)}")
             
             logger.info(f"RF-DETR detected {len(players)} players")
             return players
             
         except Exception as e:
-            logger.error(f"RF-DETR player detection error: {e}")
+            logger.error(f"🔍 RF-DETR: Player detection error: {e}")
+            import traceback
+            traceback.print_exc()
             return []
     
     def draw_detections(self, frame: np.ndarray, detections: List[Dict[str, Any]]) -> np.ndarray:
@@ -1808,56 +1874,76 @@ class RFDETRBallDetector:
         # We'll access it through the player detector instance
     
     def detect_ball(self, frame: np.ndarray, player_detector_instance) -> Optional[Dict[str, Any]]:
+        logger.info("🔍 RF-DETR BALL: Starting ball detection...")
+        
         if not player_detector_instance or not player_detector_instance.model:
+            logger.warning("🔍 RF-DETR BALL: Player detector or model not available")
             return None
         
         try:
+            logger.info("🔍 RF-DETR BALL: Converting BGR to RGB...")
             # Convert BGR to RGB and to PIL
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            logger.info("🔍 RF-DETR BALL: BGR to RGB conversion completed")
+            
             from PIL import Image
+            logger.info("🔍 RF-DETR BALL: Converting to PIL Image...")
             pil_image = Image.fromarray(frame_rgb)
+            logger.info(f"🔍 RF-DETR BALL: PIL Image created, size: {pil_image.size}")
             
             # Run inference
+            logger.info("🔍 RF-DETR BALL: Starting model inference...")
+            logger.info(f"🔍 RF-DETR BALL: Using threshold: {self.config.get('ball_conf_threshold', 0.2)}")
             detections = player_detector_instance.model.predict(pil_image, threshold=self.config.get('ball_conf_threshold', 0.2))
+            logger.info("🔍 RF-DETR BALL: Model inference completed")
+            logger.info(f"🔍 RF-DETR BALL: Raw detections: {len(detections.xyxy) if hasattr(detections, 'xyxy') else 'No xyxy attribute'} total")
             
             # Filter for ball only
             balls = []
-            logger.info(f"🔍 RF-DETR raw detections: {len(detections.xyxy)} total")
             
-            for i in range(len(detections.xyxy)):
-                bbox = detections.xyxy[i]
-                confidence = detections.confidence[i]
-                class_id = detections.class_id[i]
-                
-                logger.info(f"🔍 Detection {i}: class_id={class_id}, confidence={confidence:.3f}, bbox={bbox}")
-                
-                # Only keep balls (class_id == 1 for 'ball' based on our model)
-                if class_id == 1 and confidence > self.config.get('ball_conf_threshold', 0.2):
-                    x1, y1, x2, y2 = bbox
-                    center_x = int((x1 + x2) / 2)
-                    center_y = int((y1 + y2) / 2)
+            if hasattr(detections, 'xyxy') and len(detections.xyxy) > 0:
+                for i in range(len(detections.xyxy)):
+                    logger.info(f"🔍 RF-DETR BALL: Processing detection {i+1}/{len(detections.xyxy)}...")
+                    bbox = detections.xyxy[i]
+                    confidence = detections.confidence[i]
+                    class_id = detections.class_id[i]
                     
-                    detection = {
-                        'position': [center_x, center_y],
-                        'confidence': float(confidence),
-                        'bbox': [int(x1), int(y1), int(x2), int(y2)],
-                        'source': 'rfdetr'
-                    }
-                    balls.append(detection)
-                    logger.info(f"✅ Added ball detection: pos=({center_x}, {center_y}), conf={confidence:.3f}")
-                else:
-                    logger.info(f"❌ Filtered out: class_id={class_id} (not ball) or confidence={confidence:.3f} < {self.config.get('ball_conf_threshold', 0.2)}")
+                    logger.info(f"🔍 RF-DETR BALL: Detection {i+1}: class_id={class_id}, confidence={confidence:.3f}, bbox={bbox}")
+                    
+                    # Only keep balls (class_id == 1 for 'ball' based on our model)
+                    if class_id == 1 and confidence > self.config.get('ball_conf_threshold', 0.2):
+                        logger.info(f"🔍 RF-DETR BALL: Detection {i+1} is a valid ball")
+                        x1, y1, x2, y2 = bbox
+                        center_x = int((x1 + x2) / 2)
+                        center_y = int((y1 + y2) / 2)
+                        
+                        detection = {
+                            'position': [center_x, center_y],
+                            'confidence': float(confidence),
+                            'bbox': [int(x1), int(y1), int(x2), int(y2)],
+                            'source': 'rfdetr'
+                        }
+                        balls.append(detection)
+                        logger.info(f"🔍 RF-DETR BALL: Added ball detection: pos=({center_x}, {center_y}), conf={confidence:.3f}")
+                    else:
+                        logger.info(f"🔍 RF-DETR BALL: Detection {i+1} filtered out: class_id={class_id} (not ball) or confidence={confidence:.3f} < {self.config.get('ball_conf_threshold', 0.2)}")
+            else:
+                logger.info("🔍 RF-DETR BALL: No detections found in model output")
             
             # Return highest confidence ball
             if balls:
+                logger.info(f"🔍 RF-DETR BALL: Sorting {len(balls)} ball detections by confidence...")
                 balls.sort(key=lambda x: x['confidence'], reverse=True)
-                logger.info(f"RF-DETR ball detection: pos=({balls[0]['position'][0]}, {balls[0]['position'][1]}), conf={balls[0]['confidence']:.3f}")
+                logger.info(f"🔍 RF-DETR BALL: Best ball detection: pos=({balls[0]['position'][0]}, {balls[0]['position'][1]}), conf={balls[0]['confidence']:.3f}")
                 return balls[0]
-            
-            return None
+            else:
+                logger.info("🔍 RF-DETR BALL: No valid ball detections found")
+                return None
             
         except Exception as e:
-            logger.error(f"RF-DETR ball detection error: {e}")
+            logger.error(f"🔍 RF-DETR BALL: Ball detection error: {e}")
+            import traceback
+            traceback.print_exc()
             return None
 
 
