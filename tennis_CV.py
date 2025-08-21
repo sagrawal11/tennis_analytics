@@ -403,46 +403,62 @@ class TennisAnalysisDemo:
             while True:
                 ret, frame = cap.read()
                 if not ret:
+                    logger.info("🔍 VIDEO: End of video reached, breaking loop")
                     break
                 
                 # Process every nth frame
                 if frame_count % frame_skip != 0:
                     frame_count += 1
+                    logger.debug(f"🔍 VIDEO: Skipping frame {frame_count} (frame_skip={frame_skip})")
                     continue
                 
+                logger.info(f"🔍 VIDEO: Processing frame {frame_count} (shape: {frame.shape})")
+                
                 # Analyze frame with ALL systems
+                logger.info(f"🔍 VIDEO: Starting analysis of frame {frame_count}...")
                 start_time = time.time()
                 annotated_frame = self._analyze_frame(frame)
                 processing_time = time.time() - start_time
+                logger.info(f"🔍 VIDEO: Frame {frame_count} analysis completed in {processing_time:.3f}s")
                 
                 # Update statistics
                 self.analysis_results['total_frames'] += 1
                 self.analysis_results['processing_times'].append(processing_time)
+                logger.info(f"🔍 VIDEO: Statistics updated for frame {frame_count}")
                 
                 # Display frame
+                logger.info(f"🔍 VIDEO: Displaying frame {frame_count}...")
                 cv2.imshow('Super Advanced Tennis Analysis Engine', annotated_frame)
+                logger.info(f"🔍 VIDEO: Frame {frame_count} displayed successfully")
                 
                 # Save to output video if specified
                 if output_writer:
+                    logger.info(f"🔍 VIDEO: Writing frame {frame_count} to output video...")
                     output_writer.write(annotated_frame)
+                    logger.info(f"🔍 VIDEO: Frame {frame_count} written to output video")
                 
                 # Handle key presses
                 key = cv2.waitKey(1) & 0xFF
                 if key == ord('q'):  # Quit
+                    logger.info("🔍 VIDEO: Quit key pressed, breaking loop")
                     break
                 elif key == ord('p'):  # Pause/Resume
+                    logger.info("🔍 VIDEO: Pause key pressed, waiting for user input...")
                     cv2.waitKey(0)
+                    logger.info("🔍 VIDEO: Resume key pressed, continuing...")
                 elif key == ord('s'):  # Save current frame
+                    logger.info(f"🔍 VIDEO: Save key pressed, saving frame {frame_count}...")
                     cv2.imwrite(f"super_tennis_frame_{frame_count:06d}.jpg", annotated_frame)
                     logger.info(f"Saved frame {frame_count}")
                 
                 frame_count += 1
+                logger.info(f"🔍 VIDEO: Frame {frame_count-1} completed, moving to next frame")
                 
                 # Display progress
                 if frame_count % 30 == 0:
                     progress = (frame_count / total_frames) * 100
                     avg_time = np.mean(self.analysis_results['processing_times'])
-                    logger.info(f"Progress: {progress:.1f}% | Avg processing time: {avg_time:.3f}s")
+                    logger.info(f"🔍 VIDEO: Progress: {progress:.1f}% | Avg processing time: {avg_time:.3f}s")
         
         finally:
             cap.release()
@@ -455,6 +471,9 @@ class TennisAnalysisDemo:
     
     def _analyze_frame(self, frame: np.ndarray) -> np.ndarray:
         """Analyze a single frame with ALL systems including court detection"""
+        frame_num = self.analysis_results['total_frames']
+        logger.info(f"🔍 FRAME {frame_num}: Starting frame analysis...")
+        
         annotated_frame = frame.copy()
         
         # Data to share with analytics viewer
@@ -481,89 +500,140 @@ class TennisAnalysisDemo:
         }
         
         start_time = time.time()
+        logger.info(f"🔍 FRAME {frame_num}: Frame data initialized, starting processing...")
         
         # 1. Player Detection with RF-DETR + YOLO Fallback
+        logger.info(f"🔍 FRAME {frame_num}: Starting player detection...")
         player_detections = []
         if self.rfdetr_player_detector:
+            logger.info(f"🔍 FRAME {frame_num}: RF-DETR player detector available, attempting detection...")
             try:
                 # Try RF-DETR first (primary)
+                logger.info(f"🔍 FRAME {frame_num}: Calling RF-DETR detect_players()...")
                 rfdetr_detections = self.rfdetr_player_detector.detect_players(frame)
+                logger.info(f"🔍 FRAME {frame_num}: RF-DETR detect_players() completed, result: {rfdetr_detections}")
+                
                 if rfdetr_detections:
                     player_detections = rfdetr_detections
                     self.analysis_results['rfdetr_player_detections'] += len(rfdetr_detections)
-                    logger.info(f"RF-DETR detected {len(rfdetr_detections)} players")
+                    logger.info(f"🔍 FRAME {frame_num}: RF-DETR detected {len(rfdetr_detections)} players")
                     
                     # Draw RF-DETR detections
+                    logger.info(f"🔍 FRAME {frame_num}: Drawing RF-DETR detections...")
                     annotated_frame = self.rfdetr_player_detector.draw_detections(annotated_frame, rfdetr_detections)
+                    logger.info(f"🔍 FRAME {frame_num}: RF-DETR detections drawn successfully")
                 else:
-                    logger.info("RF-DETR no players detected, trying YOLO fallback")
+                    logger.info(f"🔍 FRAME {frame_num}: RF-DETR no players detected, trying YOLO fallback")
             except Exception as e:
+                logger.error(f"🔍 FRAME {frame_num}: RF-DETR player detection failed: {e}")
+                import traceback
+                traceback.print_exc()
                 logger.warning(f"RF-DETR player detection failed: {e}, trying YOLO fallback")
         
         # YOLO fallback if RF-DETR failed or no detections
         if not player_detections and self.yolo_fallback_detector:
+            logger.info(f"🔍 FRAME {frame_num}: Attempting YOLO fallback detection...")
             try:
+                logger.info(f"🔍 FRAME {frame_num}: Calling YOLO detect_players()...")
                 yolo_detections = self.yolo_fallback_detector.detect_players(frame)
+                logger.info(f"🔍 FRAME {frame_num}: YOLO detect_players() completed, result: {yolo_detections}")
+                
                 if yolo_detections:
                     player_detections = yolo_detections
                     self.analysis_results['yolo_fallback_detections'] += len(yolo_detections)
-                    logger.info(f"YOLO fallback detected {len(yolo_detections)} players")
+                    logger.info(f"🔍 FRAME {frame_num}: YOLO fallback detected {len(yolo_detections)} players")
                     
                     # Draw YOLO fallback detections
+                    logger.info(f"🔍 FRAME {frame_num}: Drawing YOLO fallback detections...")
                     annotated_frame = self.yolo_fallback_detector.draw_detections(annotated_frame, yolo_detections)
+                    logger.info(f"🔍 FRAME {frame_num}: YOLO fallback detections drawn successfully")
             except Exception as e:
-                logger.error(f"YOLO fallback also failed: {e}")
+                logger.error(f"🔍 FRAME {frame_num}: YOLO fallback also failed: {e}")
+                import traceback
+                traceback.print_exc()
         
         # Process detections
+        logger.info(f"🔍 FRAME {frame_num}: Processing player detections...")
         if player_detections:
+            logger.info(f"🔍 FRAME {frame_num}: Processing {len(player_detections)} player detections...")
             self.analysis_results['players_detected'] += len(player_detections)
             frame_data['player_count'] = len(player_detections)
             
             # Determine detection source
             if hasattr(player_detections[0], 'get') and 'court_score' in player_detections[0]:
                 frame_data['detection_source'] = 'rfdetr'
+                logger.info(f"🔍 FRAME {frame_num}: Detection source: RF-DETR")
             else:
                 frame_data['detection_source'] = 'yolo_fallback'
+                logger.info(f"🔍 FRAME {frame_num}: Detection source: YOLO fallback")
             
             # Store player data
-            for detection in player_detections:
+            for i, detection in enumerate(player_detections):
+                logger.info(f"🔍 FRAME {frame_num}: Processing player {i+1}/{len(player_detections)}...")
                 if 'bbox' in detection:
                     x1, y1, x2, y2 = detection['bbox']
                     frame_data['player_bboxes'].append(f"{x1},{y1},{x2},{y2}")
                     frame_data['player_confidences'].append(detection.get('confidence', 0.0))
                     
                     # Calculate player speed
+                    logger.info(f"🔍 FRAME {frame_num}: Calculating speed for player {i+1}...")
                     player_speed = self._calculate_player_speed([x1, y1, x2, y2], frame_data['timestamp'])
                     frame_data['player_speeds'].append(player_speed)
                     
                     # Detect shot type (will be updated after ball detection)
                     frame_data['player_shot_types'].append("unknown")
+                    logger.info(f"🔍 FRAME {frame_num}: Player {i+1} processed successfully")
         else:
-            logger.warning("No players detected by any model")
+            logger.warning(f"🔍 FRAME {frame_num}: No players detected by any model")
             frame_data['detection_source'] = 'none'
         
+        logger.info(f"🔍 FRAME {frame_num}: Player detection processing completed")
+        
         # 2. Pose Estimation
+        logger.info(f"🔍 FRAME {frame_num}: Starting pose estimation...")
         poses = []
         if self.pose_estimator and player_detections:
+            logger.info(f"🔍 FRAME {frame_num}: Pose estimator available, estimating poses for {len(player_detections)} players...")
             try:
+                logger.info(f"🔍 FRAME {frame_num}: Calling pose_estimator.estimate_poses()...")
                 poses = self.pose_estimator.estimate_poses(frame, player_detections)
+                logger.info(f"🔍 FRAME {frame_num}: Pose estimation completed, got {len(poses)} poses")
+                
                 self.analysis_results['poses_estimated'] += len(poses)
+                
+                logger.info(f"🔍 FRAME {frame_num}: Drawing poses on frame...")
                 annotated_frame = self.pose_estimator.draw_poses(annotated_frame, poses)
+                logger.info(f"🔍 FRAME {frame_num}: Poses drawn successfully")
                 
                 # Store pose data
                 frame_data['pose_count'] = len(poses)
-                for pose in poses:
+                logger.info(f"🔍 FRAME {frame_num}: Storing pose data...")
+                for i, pose in enumerate(poses):
+                    logger.info(f"🔍 FRAME {frame_num}: Processing pose {i+1}/{len(poses)}...")
                     if 'keypoints' in pose:
                         keypoints_str = []
-                        for kp in pose['keypoints']:
+                        for j, kp in enumerate(pose['keypoints']):
                             keypoints_str.append(f"{kp[0]:.1f},{kp[1]:.1f},{kp[2]:.3f}")
                         frame_data['pose_keypoints'].append('|'.join(keypoints_str))
+                        logger.info(f"🔍 FRAME {frame_num}: Pose {i+1} processed with {len(pose['keypoints'])} keypoints")
+                logger.info(f"🔍 FRAME {frame_num}: Pose data storage completed")
             except Exception as e:
-                logger.error(f"Pose estimation error: {e}")
+                logger.error(f"🔍 FRAME {frame_num}: Pose estimation error: {e}")
+                import traceback
+                traceback.print_exc()
+        else:
+            logger.info(f"🔍 FRAME {frame_num}: Pose estimation skipped (no estimator or no players)")
+        
+        logger.info(f"🔍 FRAME {frame_num}: Pose estimation section completed")
         
         # 3. Ball Detection and Tracking
+        logger.info(f"🔍 FRAME {frame_num}: Starting ball detection and tracking...")
+        logger.info(f"🔍 FRAME {frame_num}: Calling _detect_ball_in_frame()...")
         ball_pred = self._detect_ball_in_frame(frame)
+        logger.info(f"🔍 FRAME {frame_num}: Ball detection completed, result: {ball_pred}")
+        
         if ball_pred:
+            logger.info(f"🔍 FRAME {frame_num}: Ball detected, processing ball data...")
             self.analysis_results['combined_ball_detections'] += 1
             frame_data['ball_position'] = ball_pred
             
@@ -573,33 +643,54 @@ class TennisAnalysisDemo:
             frame_data['ball_y'] = y
             frame_data['ball_confidence'] = ball_pred.get('confidence', 0.0)
             frame_data['ball_source'] = ball_pred.get('source', 'unknown')
+            logger.info(f"🔍 FRAME {frame_num}: Ball position stored: ({x}, {y})")
             
             # Calculate ball speed
+            logger.info(f"🔍 FRAME {frame_num}: Calculating ball speed...")
             ball_speed = self._calculate_ball_speed([x, y], frame_data['timestamp'])
             frame_data['ball_speed'] = ball_speed
+            logger.info(f"🔍 FRAME {frame_num}: Ball speed calculated: {ball_speed}")
             
             # Detect shot types for each player
+            logger.info(f"🔍 FRAME {frame_num}: Detecting shot types for {len(frame_data['player_bboxes'])} players...")
             for i, player_bbox_str in enumerate(frame_data['player_bboxes']):
                 try:
+                    logger.info(f"🔍 FRAME {frame_num}: Processing shot type for player {i+1}...")
                     x1, y1, x2, y2 = map(int, player_bbox_str.split(','))
                     shot_type = self._detect_shot_type([x1, y1, x2, y2], [x, y], poses, self.court_keypoints)
                     frame_data['player_shot_types'][i] = shot_type
-                except:
+                    logger.info(f"🔍 FRAME {frame_num}: Player {i+1} shot type: {shot_type}")
+                except Exception as e:
+                    logger.error(f"🔍 FRAME {frame_num}: Error detecting shot type for player {i+1}: {e}")
                     continue
             
             # Calculate velocity
             if len(self.ball_positions) >= 2:
+                logger.info(f"🔍 FRAME {frame_num}: Calculating ball velocity...")
                 velocity = self._calculate_velocity(self.ball_positions[-2], ball_pred)
                 self.ball_velocities.append(velocity)
+                logger.info(f"🔍 FRAME {frame_num}: Ball velocity calculated: {velocity}")
             
             # Draw ball tracking
+            logger.info(f"🔍 FRAME {frame_num}: Drawing ball tracking...")
             annotated_frame = self._draw_ball_tracking(annotated_frame, ball_pred)
+            logger.info(f"🔍 FRAME {frame_num}: Ball tracking drawn successfully")
+        else:
+            logger.info(f"🔍 FRAME {frame_num}: No ball detected in this frame")
+        
+        logger.info(f"🔍 FRAME {frame_num}: Ball detection and tracking section completed")
         
         # 4. Ball Bounce Detection
+        logger.info(f"🔍 FRAME {frame_num}: Starting bounce detection...")
         if self.bounce_detector:
+            logger.info(f"🔍 FRAME {frame_num}: Bounce detector available, attempting detection...")
             try:
+                logger.info(f"🔍 FRAME {frame_num}: Calling bounce_detector.detect_bounce()...")
                 bounce_probability = self.bounce_detector.detect_bounce(frame)
+                logger.info(f"🔍 FRAME {frame_num}: Bounce detection completed, probability: {bounce_probability}")
+                
                 if bounce_probability > 0.7:  # High confidence threshold
+                    logger.info(f"🔍 FRAME {frame_num}: Bounce detected with high confidence!")
                     self.analysis_results['bounces_detected'] += 1
                     frame_data['bounce_detected'] = True
                     frame_data['bounce_confidence'] = bounce_probability
@@ -608,49 +699,82 @@ class TennisAnalysisDemo:
                                (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
                     # Draw bounce circle
                     cv2.circle(annotated_frame, (100, 100), 30, (0, 0, 255), -1)
+                    logger.info(f"🔍 FRAME {frame_num}: Bounce indicators drawn successfully")
+                else:
+                    logger.info(f"🔍 FRAME {frame_num}: No bounce detected (probability: {bounce_probability})")
             except Exception as e:
-                logger.error(f"Bounce detection error: {e}")
+                logger.error(f"🔍 FRAME {frame_num}: Bounce detection error: {e}")
+                import traceback
+                traceback.print_exc()
+        else:
+            logger.info(f"🔍 FRAME {frame_num}: Bounce detector not available")
+        
+        logger.info(f"🔍 FRAME {frame_num}: Bounce detection section completed")
         
         # 5. NEW: Court Detection and Analysis
+        logger.info(f"🔍 FRAME {frame_num}: Starting court detection...")
         if self.court_detector:
+            logger.info(f"🔍 FRAME {frame_num}: Court detector available, attempting detection...")
             try:
+                logger.info(f"🔍 FRAME {frame_num}: Calling court_detector.detect_court_in_frame()...")
                 court_points = self.court_detector.detect_court_in_frame(frame)
+                logger.info(f"🔍 FRAME {frame_num}: Court detection completed, got {len(court_points) if court_points else 0} points")
                 
                 if court_points:
+                    logger.info(f"🔍 FRAME {frame_num}: Processing court points...")
                     # Update court statistics
                     keypoints_detected = sum(1 for p in court_points if p[0] is not None and p[1] is not None)
                     self.analysis_results['keypoints_detected'] += keypoints_detected
+                    logger.info(f"🔍 FRAME {frame_num}: Court keypoints detected: {keypoints_detected}")
                     
                     # Store court data
                     court_keypoints_str = []
-                    for point in court_points:
+                    for i, point in enumerate(court_points):
                         if point[0] is not None and point[1] is not None:
                             court_keypoints_str.append(f"{point[0]:.1f},{point[1]:.1f}")
                         else:
                             court_keypoints_str.append("None,None")
                     frame_data['court_keypoints'] = court_keypoints_str
+                    logger.info(f"🔍 FRAME {frame_num}: Court keypoints stored: {len(court_keypoints_str)}")
                     
                     # Draw court keypoints and lines
+                    logger.info(f"🔍 FRAME {frame_num}: Drawing court visualization...")
                     annotated_frame = self._draw_court_visualization(annotated_frame, court_points)
+                    logger.info(f"🔍 FRAME {frame_num}: Court visualization drawn successfully")
                     
                     # Update court detection count if we have enough keypoints
                     if keypoints_detected >= 4:
                         self.analysis_results['court_detections'] += 1
+                        logger.info(f"🔍 FRAME {frame_num}: Court detection count updated (total: {self.analysis_results['court_detections']})")
+                else:
+                    logger.info(f"🔍 FRAME {frame_num}: No court points detected")
                         
             except Exception as e:
-                logger.error(f"Court detection error: {e}")
+                logger.error(f"🔍 FRAME {frame_num}: Court detection error: {e}")
+                import traceback
+                traceback.print_exc()
+        else:
+            logger.info(f"🔍 FRAME {frame_num}: Court detector not available")
+        
+        logger.info(f"🔍 FRAME {frame_num}: Court detection section completed")
         
         # Calculate processing time
         processing_time = time.time() - start_time
         frame_data['processing_time'] = processing_time
         self.analysis_results['processing_times'].append(processing_time)
+        logger.info(f"🔍 FRAME {frame_num}: Processing time: {processing_time:.3f}s")
         
         # Output data for analytics viewer
+        logger.info(f"🔍 FRAME {frame_num}: Outputting frame data to CSV...")
         self._output_frame_data(frame_data)
+        logger.info(f"🔍 FRAME {frame_num}: Frame data output completed")
         
         # Add comprehensive frame information
+        logger.info(f"🔍 FRAME {frame_num}: Adding frame information overlay...")
         self._add_frame_info(annotated_frame)
+        logger.info(f"🔍 FRAME {frame_num}: Frame information overlay added")
         
+        logger.info(f"🔍 FRAME {frame_num}: Frame analysis COMPLETED successfully!")
         return annotated_frame
     
     def _output_frame_data(self, frame_data: Dict[str, Any]):
