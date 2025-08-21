@@ -88,13 +88,18 @@ class TennisMasterController:
             logger.info("🚀 Starting CV viewer...")
             logger.info(f"Command: {' '.join(cmd)}")
             
+            # Set environment variables needed for RF-DETR on macOS
+            env = os.environ.copy()
+            env['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
+            
             self.cv_process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
                 bufsize=1,
-                universal_newlines=True
+                universal_newlines=True,
+                env=env
             )
             
             logger.info(f"✅ CV viewer started (PID: {self.cv_process.pid})")

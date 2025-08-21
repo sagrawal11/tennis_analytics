@@ -33,18 +33,50 @@ class RFDETRVideoTester:
             raise
     
     def _load_model(self):
-        """Load the RF-DETR model using the official package"""
+        """Load the RF-DETR model with custom tennis weights"""
         try:
-            # Import RF-DETR
-            from rfdetr import RFDETRBase
+            # Load checkpoint first to get configuration
+            logger.info(f"Loading checkpoint from {self.model_path}")
+            checkpoint = torch.load(self.model_path, map_location='cpu')
             
-            # Load the base model (it comes with pretrained weights)
-            self.model = RFDETRBase()
-            
-            # The model is already loaded with pretrained weights
-            # We can't load custom weights directly, so we'll use the base model
-            # This should still give us good detection performance
-            logger.info("RF-DETR base model loaded with pretrained weights")
+            if 'args' in checkpoint and 'model' in checkpoint:
+                # Extract configuration from checkpoint
+                args = checkpoint['args']
+                logger.info(f"Found custom tennis model with {args.num_classes} classes")
+                logger.info(f"Class names: {args.class_names}")
+                
+                # Import RF-DETR with custom configuration
+                from rfdetr import RFDETRNano  # Use Nano since that's what our model appears to be
+                
+                # Create model with custom classes (RF-DETR adds background automatically)
+                # Our checkpoint has 3 classes total (background + ball + player)
+                # But RF-DETR expects num_classes to be just the object classes (ball + player = 2)
+                self.model = RFDETRNano(
+                    num_classes=len(args.class_names),  # 2 classes: ball + player
+                    pretrain_weights=None  # Don't load default weights
+                )
+                
+                # Load our custom state dict into the underlying PyTorch model
+                missing_keys, unexpected_keys = self.model.model.model.load_state_dict(checkpoint['model'], strict=False)
+                if missing_keys:
+                    logger.warning(f"Missing keys when loading model: {missing_keys[:5]}...")  # Show first 5
+                if unexpected_keys:
+                    logger.warning(f"Unexpected keys when loading model: {unexpected_keys[:5]}...")  # Show first 5
+                
+                # Set class names (try different approaches)
+                try:
+                    self.model.class_names = args.class_names
+                except:
+                    # Fallback: manually set it
+                    self.model.model.class_names = args.class_names
+                
+                # Store args for later use
+                self.args = args
+                logger.info("Custom tennis RF-DETR model loaded successfully!")
+                
+            else:
+                logger.error("Invalid checkpoint format - missing 'args' or 'model'")
+                raise ValueError("Invalid checkpoint format")
                 
         except ImportError:
             logger.error("RF-DETR package not found. Install with: pip install rfdetr")
@@ -69,6 +101,12 @@ class RFDETRVideoTester:
             # Run inference
             detections = self.model.predict(pil_image, threshold=conf_threshold)
             
+            # Use our custom tennis class names
+            class_names = self.model.class_names
+            logger.info(f"Using tennis classes: {class_names}")
+            
+
+            
             # Convert to our format
             converted_detections = []
             for i in range(len(detections.xyxy)):
@@ -76,12 +114,20 @@ class RFDETRVideoTester:
                 confidence = detections.confidence[i]
                 class_id = detections.class_id[i]
                 
+                # Get class name - handle the mapping correctly
+                if class_id == 0:  # Background class
+                    continue  # Skip background detections
+                elif class_id in class_names:
+                    class_name = class_names[class_id]
+                else:
+                    class_name = f"unknown_{class_id}"
+                
                 # Convert to our format
                 detection = {
                     'bbox': [int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])],
                     'class': int(class_id),
                     'confidence': float(confidence),
-                    'class_name': 'ball' if int(class_id) == 0 else 'player'
+                    'class_name': class_name
                 }
                 converted_detections.append(detection)
             
@@ -90,6 +136,48 @@ class RFDETRVideoTester:
         except Exception as e:
             logger.error(f"Error in detection: {e}")
             return []
+    
+    def _filter_detections(self, detections: List[Dict]) -> List[Dict]:
+        """Filter detections to only keep exactly 2 players and 1 ball"""
+        # Separate detections by type
+        players = []
+        balls = []
+        
+        for detection in detections:
+            class_name = detection['class_name']
+            confidence = detection['confidence']
+            bbox = detection['bbox']
+            
+            if class_name == 'player' and confidence > 0.3:  # Tennis players
+                x1, y1, x2, y2 = bbox
+                bbox_center_x = (x1 + x2) / 2
+                bbox_center_y = (y1 + y2) / 2
+                
+                # Court position scoring - players should be in center area
+                frame_center_x = 1920 / 2
+                frame_center_y = 1080 / 2
+                distance_from_center = abs(bbox_center_x - frame_center_x) + abs(bbox_center_y - frame_center_y)
+                
+                # Combined score: confidence + court position
+                detection['court_score'] = confidence - (distance_from_center / 2000)
+                players.append(detection)
+                
+            elif class_name == 'ball' and confidence > 0.2:  # Tennis ball (lower threshold)
+                balls.append(detection)
+        
+        # Select best 2 players and 1 ball
+        filtered = []
+        
+        # Keep top 2 players by court score
+        players.sort(key=lambda x: x['court_score'], reverse=True)
+        filtered.extend(players[:2])
+        
+        # Keep highest confidence ball
+        if balls:
+            balls.sort(key=lambda x: x['confidence'], reverse=True)
+            filtered.append(balls[0])
+        
+        return filtered
     
     def test_video(self, output_path: str = None):
         """Test the model on the video"""
@@ -132,11 +220,14 @@ class RFDETRVideoTester:
             detections = self.detect_objects(frame)
             detection_time = time.time() - detection_start
             
+            # Filter detections
+            filtered_detections = self._filter_detections(detections)
+            
             # Draw detections
-            result_frame = self._draw_detections(frame, detections)
+            result_frame = self._draw_detections(frame, filtered_detections)
             
             # Add info overlay
-            info_text = f"Frame: {frame_count}/{total_frames} | Detection: {detection_time*1000:.1f}ms | Objects: {len(detections)}"
+            info_text = f"Frame: {frame_count}/{total_frames} | Detection: {detection_time*1000:.1f}ms | Objects: {len(filtered_detections)}"
             cv2.putText(result_frame, info_text, (10, 30), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
             
@@ -151,7 +242,7 @@ class RFDETRVideoTester:
             if frame_count % 30 == 0:
                 elapsed = time.time() - start_time
                 fps_actual = frame_count / elapsed
-                logger.info(f"Progress: {frame_count}/{total_frames} | FPS: {fps_actual:.1f} | Objects detected: {len(detections)}")
+                logger.info(f"Progress: {frame_count}/{total_frames} | FPS: {fps_actual:.1f} | Objects detected: {len(filtered_detections)}")
             
             # Check for quit
             if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -172,6 +263,12 @@ class RFDETRVideoTester:
         """Draw detection boxes on frame"""
         frame_copy = frame.copy()
         
+        # Define colors for our custom tennis classes
+        class_colors = {
+            'player': (0, 255, 0),      # Green for tennis players
+            'ball': (0, 255, 255),      # Yellow for tennis ball
+        }
+        
         for detection in detections:
             bbox = detection['bbox']
             x1, y1, x2, y2 = bbox
@@ -179,19 +276,21 @@ class RFDETRVideoTester:
             class_name = detection['class_name']
             
             # Choose color based on class
-            if class_name == 'ball':
-                color = (0, 255, 255)  # Yellow for ball
-            else:
-                color = (0, 255, 0)    # Green for player
+            color = class_colors.get(class_name, (128, 128, 128))  # Gray for unknown
             
             # Draw bounding box
             cv2.rectangle(frame_copy, (x1, y1), (x2, y2), color, 2)
             
-            # Draw label
-            label = f"{class_name}: {confidence:.2f}"
+            # Create clean label
+            label = f"{class_name.title()}: {confidence:.2f}"
+            
             label_size = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)[0]
+            
+            # Draw label background
             cv2.rectangle(frame_copy, (x1, y1 - label_size[1] - 10), 
                          (x1 + label_size[0], y1), color, -1)
+            
+            # Draw label text
             cv2.putText(frame_copy, label, (x1, y1 - 5), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
         

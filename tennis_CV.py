@@ -37,6 +37,15 @@ except ImportError as e:
     COURT_DETECTION_AVAILABLE = False
     logger.warning(f"TennisCourtDetector imports failed: {e} - Court detection will be disabled")
 
+# Import RF-DETR for enhanced player and ball detection
+try:
+    from rfdetr import RFDETRNano
+    RFDETR_AVAILABLE = True
+    logger.info("RF-DETR imports successful - Enhanced detection enabled")
+except ImportError as e:
+    RFDETR_AVAILABLE = False
+    logger.warning(f"RF-DETR imports failed: {e} - Enhanced detection will be disabled")
+
 class TennisAnalysisDemo:
     """Super advanced integrated tennis analysis system with court detection"""
     
@@ -53,6 +62,11 @@ class TennisAnalysisDemo:
         self.tracknet_model = None
         self.yolo_ball_model = None
         self.court_detector = None  # NEW: Court detection system
+        
+        # NEW: RF-DETR components for enhanced detection
+        self.rfdetr_player_detector = None
+        self.rfdetr_ball_detector = None
+        self.yolo_fallback_detector = None  # Keep YOLO as fallback
         
         # Ball tracking state
         self.ball_positions = deque(maxlen=30)  # Store last 30 ball positions
@@ -129,7 +143,11 @@ class TennisAnalysisDemo:
             'combined_ball_detections': 0,
             'court_detections': 0,  # NEW: Court detection count
             'keypoints_detected': 0,  # NEW: Court keypoint count
-            'processing_times': []
+            'processing_times': [],
+            # NEW: RF-DETR detection counts
+            'rfdetr_player_detections': 0,
+            'rfdetr_ball_detections': 0,
+            'yolo_fallback_detections': 0
         }
         
         self._initialize_components()
@@ -155,7 +173,8 @@ class TennisAnalysisDemo:
                 'bounce_detector': 'models/bounce_detector.cbm',
                 'tracknet': 'pretrained_ball_detection.pt',
                 'yolo_ball': 'models/playersnball4.pt',
-                'court_detector': 'model_tennis_court_det.pt'  # NEW: Court detection model
+                'court_detector': 'model_tennis_court_det.pt',  # NEW: Court detection model
+                'rfdetr_model': 'models/playersnball5.pt'  # NEW: RF-DETR enhanced model
             },
             'yolo_player': {
                 'conf_threshold': 0.5,
@@ -187,6 +206,12 @@ class TennisAnalysisDemo:
                 'smoothing_factor': 0.7,
                 'prediction_frames': 3
             },
+            'rfdetr': {  # NEW: RF-DETR settings
+                'player_conf_threshold': 0.3,
+                'ball_conf_threshold': 0.2,
+                'max_players': 2,
+                'max_balls': 1
+            },
             'court_detection': {  # NEW: Court detection settings
                 'input_width': 640,
                 'input_height': 360,
@@ -207,16 +232,60 @@ class TennisAnalysisDemo:
     def _initialize_components(self):
         """Initialize all analysis components including court detection"""
         try:
-            # Initialize player detector
+            # Initialize RF-DETR player detector (primary)
+            logger.info(f"🔍 RF-DETR_AVAILABLE: {RFDETR_AVAILABLE}")
+            
+            if RFDETR_AVAILABLE:
+                rfdetr_model_path = self.config['models'].get('rfdetr_model')
+                logger.info(f"🔍 RF-DETR model path: {rfdetr_model_path}")
+                logger.info(f"🔍 RF-DETR model path exists: {Path(rfdetr_model_path).exists() if rfdetr_model_path else False}")
+                
+                if rfdetr_model_path and Path(rfdetr_model_path).exists():
+                    try:
+                        logger.info("🔍 Attempting to create RFDETRPlayerDetector...")
+                        self.rfdetr_player_detector = RFDETRPlayerDetector(
+                            rfdetr_model_path,
+                            self.config['rfdetr']
+                        )
+                        logger.info(f"🔍 RFDETRPlayerDetector created: {self.rfdetr_player_detector is not None}")
+                        
+                        logger.info("🔍 Attempting to create RFDETRBallDetector...")
+                        self.rfdetr_ball_detector = RFDETRBallDetector(
+                            rfdetr_model_path,
+                            self.config['rfdetr']
+                        )
+                        logger.info(f"🔍 RFDETRBallDetector created: {self.rfdetr_ball_detector is not None}")
+                        
+                        logger.info("RF-DETR player and ball detectors initialized successfully")
+                    except Exception as e:
+                        logger.error(f"RF-DETR initialization failed: {e}")
+                        import traceback
+                        traceback.print_exc()
+                        self.rfdetr_player_detector = None
+                        self.rfdetr_ball_detector = None
+                else:
+                    logger.warning(f"RF-DETR model not found: {rfdetr_model_path}")
+                    self.rfdetr_player_detector = None
+                    self.rfdetr_ball_detector = None
+            else:
+                logger.warning("RF-DETR not available - using YOLO fallback")
+                self.rfdetr_player_detector = None
+                self.rfdetr_ball_detector = None
+            
+            # Initialize YOLO player detector (fallback)
             player_model_path = self.config['models']['yolo_player']
             if Path(player_model_path).exists():
-                self.player_detector = PlayerDetector(
+                self.yolo_fallback_detector = PlayerDetector(
                     player_model_path,
                     self.config['yolo_player']
                 )
-                logger.info("Player detector initialized successfully")
+                logger.info("YOLO fallback player detector initialized successfully")
             else:
-                logger.warning(f"Player detection model not found: {player_model_path}")
+                logger.warning(f"YOLO fallback player detection model not found: {player_model_path}")
+                self.yolo_fallback_detector = None
+            
+            # Set primary player detector (RF-DETR if available, otherwise YOLO)
+            self.player_detector = self.rfdetr_player_detector if self.rfdetr_player_detector else self.yolo_fallback_detector
             
             # Initialize pose estimator
             pose_model_path = self.config['models']['yolo_pose']
@@ -407,35 +476,71 @@ class TennisAnalysisDemo:
             'court_keypoints': [],
             'bounce_detected': False,
             'bounce_confidence': 0.0,
-            'processing_time': 0.0
+            'processing_time': 0.0,
+            'detection_source': 'unknown'  # NEW: RF-DETR vs YOLO fallback
         }
         
         start_time = time.time()
         
-        # 1. Player Detection
+        # 1. Player Detection with RF-DETR + YOLO Fallback
         player_detections = []
-        if self.player_detector:
+        if self.rfdetr_player_detector:
             try:
-                player_detections = self.player_detector.detect_players(frame)
-                self.analysis_results['players_detected'] += len(player_detections)
-                annotated_frame = self.player_detector.draw_detections(annotated_frame, player_detections)
-                
-                # Store player data
-                frame_data['player_count'] = len(player_detections)
-                for detection in player_detections:
-                    if 'bbox' in detection:
-                        x1, y1, x2, y2 = detection['bbox']
-                        frame_data['player_bboxes'].append(f"{x1},{y1},{x2},{y2}")
-                        frame_data['player_confidences'].append(detection.get('confidence', 0.0))
-                        
-                        # Calculate player speed
-                        player_speed = self._calculate_player_speed([x1, y1, x2, y2], frame_data['timestamp'])
-                        frame_data['player_speeds'].append(player_speed)
-                        
-                        # Detect shot type (will be updated after ball detection)
-                        frame_data['player_shot_types'].append("unknown")
+                # Try RF-DETR first (primary)
+                rfdetr_detections = self.rfdetr_player_detector.detect_players(frame)
+                if rfdetr_detections:
+                    player_detections = rfdetr_detections
+                    self.analysis_results['rfdetr_player_detections'] += len(rfdetr_detections)
+                    logger.info(f"RF-DETR detected {len(rfdetr_detections)} players")
+                    
+                    # Draw RF-DETR detections
+                    annotated_frame = self.rfdetr_player_detector.draw_detections(annotated_frame, rfdetr_detections)
+                else:
+                    logger.info("RF-DETR no players detected, trying YOLO fallback")
             except Exception as e:
-                logger.error(f"Player detection error: {e}")
+                logger.warning(f"RF-DETR player detection failed: {e}, trying YOLO fallback")
+        
+        # YOLO fallback if RF-DETR failed or no detections
+        if not player_detections and self.yolo_fallback_detector:
+            try:
+                yolo_detections = self.yolo_fallback_detector.detect_players(frame)
+                if yolo_detections:
+                    player_detections = yolo_detections
+                    self.analysis_results['yolo_fallback_detections'] += len(yolo_detections)
+                    logger.info(f"YOLO fallback detected {len(yolo_detections)} players")
+                    
+                    # Draw YOLO fallback detections
+                    annotated_frame = self.yolo_fallback_detector.draw_detections(annotated_frame, yolo_detections)
+            except Exception as e:
+                logger.error(f"YOLO fallback also failed: {e}")
+        
+        # Process detections
+        if player_detections:
+            self.analysis_results['players_detected'] += len(player_detections)
+            frame_data['player_count'] = len(player_detections)
+            
+            # Determine detection source
+            if hasattr(player_detections[0], 'get') and 'court_score' in player_detections[0]:
+                frame_data['detection_source'] = 'rfdetr'
+            else:
+                frame_data['detection_source'] = 'yolo_fallback'
+            
+            # Store player data
+            for detection in player_detections:
+                if 'bbox' in detection:
+                    x1, y1, x2, y2 = detection['bbox']
+                    frame_data['player_bboxes'].append(f"{x1},{y1},{x2},{y2}")
+                    frame_data['player_confidences'].append(detection.get('confidence', 0.0))
+                    
+                    # Calculate player speed
+                    player_speed = self._calculate_player_speed([x1, y1, x2, y2], frame_data['timestamp'])
+                    frame_data['player_speeds'].append(player_speed)
+                    
+                    # Detect shot type (will be updated after ball detection)
+                    frame_data['player_shot_types'].append("unknown")
+        else:
+            logger.warning("No players detected by any model")
+            frame_data['detection_source'] = 'none'
         
         # 2. Pose Estimation
         poses = []
@@ -570,7 +675,9 @@ class TennisAnalysisDemo:
                 f'"{";".join(frame_data["court_keypoints"])}"' if frame_data['court_keypoints'] else '""',
                 str(frame_data['bounce_detected']),
                 str(frame_data['bounce_confidence']),
-                str(frame_data['processing_time'])
+                str(frame_data['processing_time']),
+                # NEW: RF-DETR detection source
+                str(frame_data.get('detection_source', 'unknown'))
             ]
             
             # Write to CSV file
@@ -586,7 +693,8 @@ class TennisAnalysisDemo:
             headers = [
                 'frame_number', 'timestamp', 'ball_x', 'ball_y', 'ball_confidence', 'ball_source', 'ball_speed',
                 'player_count', 'player_bboxes', 'player_confidences', 'player_speeds', 'player_shot_types',
-                'pose_count', 'pose_keypoints', 'court_keypoints', 'bounce_detected', 'bounce_confidence', 'processing_time'
+                'pose_count', 'pose_keypoints', 'court_keypoints', 'bounce_detected', 'bounce_confidence', 'processing_time',
+                'detection_source'  # NEW: RF-DETR vs YOLO fallback
             ]
             
             with open('tennis_analysis_data.csv', 'w') as f:
@@ -664,6 +772,7 @@ class TennisAnalysisDemo:
                 (1, 3),             # Right sideline: 1 → 3
                 (5, 10, 8, 4),     # Left doubles alley: 5 → 10 → 8 → 4
                 (6, 9, 11, 7),     # Right doubles alley: 6 → 9 → 11 → 7
+                (12, 13),           # Center service line: 12 → 13
             ]
             
             # Draw horizontal lines (blue)
@@ -698,11 +807,43 @@ class TennisAnalysisDemo:
             cv2.line(frame, start_point, end_point, color, thickness)
     
     def _detect_ball_in_frame(self, frame: np.ndarray) -> Optional[Dict[str, Any]]:
-        """Detect ball in a single frame using both models"""
+        """Detect ball in a single frame using RF-DETR FIRST, then YOLO+TrackNet fallback"""
         tracknet_pred = None
         yolo_pred = None
+        rfdetr_pred = None
         
-        # 1. TrackNet prediction
+        # Debug logging
+        logger.info(f"🔍 Ball detection - RF-DETR detector available: {self.rfdetr_ball_detector is not None}")
+        logger.info(f"🔍 Ball detection - RF-DETR player detector available: {self.rfdetr_player_detector is not None}")
+        
+        # 1. RF-DETR ball prediction (PRIMARY)
+        if self.rfdetr_ball_detector:
+            try:
+                logger.info("🎯 Attempting RF-DETR ball detection...")
+                rfdetr_pred = self.rfdetr_ball_detector.detect_ball(frame, self.rfdetr_player_detector)
+                logger.info(f"🎯 RF-DETR result: {rfdetr_pred}")
+                
+                if rfdetr_pred:
+                    self.analysis_results['rfdetr_ball_detections'] += 1
+                    logger.info(f"🎯 RF-DETR PRIMARY ball detection: {rfdetr_pred}")
+                    # RF-DETR detected the ball - use it directly with high confidence
+                    return {
+                        'position': rfdetr_pred['position'],
+                        'confidence': min(1.0, rfdetr_pred['confidence'] * 1.1),  # Boost confidence by 10%
+                        'source': 'rfdetr_primary',
+                        'bbox': rfdetr_pred['bbox']
+                    }
+                else:
+                    logger.info("🎯 RF-DETR returned None - no ball detected")
+            except Exception as e:
+                logger.error(f"RF-DETR error: {e}")
+                import traceback
+                traceback.print_exc()
+        
+        # 2. RF-DETR failed - fallback to YOLO + TrackNet
+        logger.info("🔄 RF-DETR no ball detected, using YOLO+TrackNet fallback")
+        
+        # TrackNet prediction
         if self.tracknet_model:
             try:
                 tracknet_pred = self.tracknet_model.detect_ball(frame)
@@ -712,7 +853,7 @@ class TennisAnalysisDemo:
             except Exception as e:
                 logger.error(f"TrackNet error: {e}")
         
-        # 2. YOLO ball prediction
+        # YOLO ball prediction
         if self.yolo_ball_model:
             try:
                 yolo_pred = self.yolo_ball_model.detect_ball(frame)
@@ -722,56 +863,186 @@ class TennisAnalysisDemo:
             except Exception as e:
                 logger.error(f"YOLO error: {e}")
         
-        # 3. Combine predictions
-        return self._combine_predictions(tracknet_pred, yolo_pred)
+        # 3. Combine fallback predictions (YOLO + TrackNet)
+        return self._combine_fallback_predictions(tracknet_pred, yolo_pred)
     
-    def _combine_predictions(self, tracknet_pred: Optional[Dict], yolo_pred: Optional[Dict]) -> Optional[Dict]:
-        """Combine predictions from both models"""
+    def _combine_fallback_predictions(self, tracknet_pred: Optional[Dict], yolo_pred: Optional[Dict]) -> Optional[Dict]:
+        """Combine YOLO + TrackNet predictions when RF-DETR fails (FALLBACK ONLY)"""
         if not tracknet_pred and not yolo_pred:
             return None
         
         if tracknet_pred and not yolo_pred:
-            return tracknet_pred
+            return {**tracknet_pred, 'source': 'tracknet_fallback'}
         
         if yolo_pred and not tracknet_pred:
-            return yolo_pred
+            return {**yolo_pred, 'source': 'yolo_fallback'}
         
-        # Both predictions exist - combine them
+        # Both predictions exist - combine them with consensus
         tracknet_pos = tracknet_pred['position']
         yolo_pos = yolo_pred['position']
         tracknet_conf = tracknet_pred['confidence']
         yolo_conf = yolo_pred['confidence']
         
-        # Weighted average based on confidence
-        total_conf = tracknet_conf + yolo_conf
-        if total_conf > 0:
+        # Check if they agree (within 30 pixels)
+        distance = np.sqrt((tracknet_pos[0] - yolo_pos[0])**2 + (tracknet_pos[1] - yolo_pos[1])**2)
+        
+        if distance < 30:  # They agree!
+            # Use weighted average
+            total_conf = tracknet_conf + yolo_conf
             combined_x = (tracknet_pos[0] * tracknet_conf + yolo_pos[0] * yolo_conf) / total_conf
-            combined_y = (tracknet_pos[1] * tracknet_conf + yolo_pos[1] * yolo_conf) / total_conf
+            combined_y = (tracknet_pos[1] * yolo_conf + yolo_pos[1] * yolo_conf) / total_conf
             combined_conf = (tracknet_conf + yolo_conf) / 2
             
-            # Apply velocity-based filtering
-            if len(self.ball_positions) > 0:
-                last_pos = self.ball_positions[-1]['position']
-                distance = np.sqrt((combined_x - last_pos[0])**2 + (combined_y - last_pos[1])**2)
-                max_velocity = self.config['ball_tracking']['max_velocity']
-                
-                if distance > max_velocity:
-                    # Use the prediction closer to last position
-                    tracknet_dist = np.sqrt((tracknet_pos[0] - last_pos[0])**2 + (tracknet_pos[1] - last_pos[1])**2)
-                    yolo_dist = np.sqrt((yolo_pos[0] - last_pos[0])**2 + (yolo_pos[1] - last_pos[1])**2)
-                    
-                    if tracknet_dist < yolo_dist:
-                        return tracknet_pred
-                    else:
-                        return yolo_pred
+            logger.info(f"🔄 FALLBACK CONSENSUS: TrackNet + YOLO agree at ({int(combined_x)}, {int(combined_y)})")
             
             return {
                 'position': [int(combined_x), int(combined_y)],
                 'confidence': combined_conf,
-                'source': 'combined'
+                'source': 'fallback_consensus'
             }
+        else:
+            # They don't agree - use the higher confidence one
+            if tracknet_conf > yolo_conf:
+                logger.info(f"🔄 FALLBACK: Using TrackNet (higher confidence: {tracknet_conf:.3f})")
+                return {**tracknet_pred, 'source': 'tracknet_fallback'}
+            else:
+                logger.info(f"🔄 FALLBACK: Using YOLO (higher confidence: {yolo_conf:.3f})")
+                return {**yolo_pred, 'source': 'yolo_fallback'}
+    
+    def _combine_predictions(self, tracknet_pred: Optional[Dict], yolo_pred: Optional[Dict]) -> Optional[Dict]:
+        """Combine predictions from both models (legacy method - now replaced by _combine_fallback_predictions)"""
+        return self._combine_fallback_predictions(tracknet_pred, yolo_pred)
+    
+    def _combine_triple_predictions(self, tracknet_pred: Optional[Dict], yolo_pred: Optional[Dict], rfdetr_pred: Optional[Dict]) -> Optional[Dict]:
+        """Combine predictions from ALL THREE models with weighted fusion and consensus rules"""
+        predictions = []
         
-        return None
+        # Collect all valid predictions
+        if tracknet_pred:
+            predictions.append(('tracknet', tracknet_pred))
+        if yolo_pred:
+            predictions.append(('yolo', yolo_pred))
+        if rfdetr_pred:
+            predictions.append(('rfdetr', rfdetr_pred))
+        
+        if not predictions:
+            return None
+        
+        if len(predictions) == 1:
+            # Only one model detected the ball
+            source, pred = predictions[0]
+            return {**pred, 'source': f'{source}_only'}
+        
+        # Multiple predictions - implement consensus rules
+        if len(predictions) >= 2:
+            # Check if 2/3 models agree on ball location
+            positions = []
+            for source, pred in predictions:
+                pos = pred['position']
+                positions.append((pos[0], pos[1], pred['confidence'], source))
+            
+            # Group nearby detections (within 50 pixels)
+            clusters = []
+            for pos in positions:
+                x, y, conf, source = pos
+                added_to_cluster = False
+                
+                for cluster in clusters:
+                    cluster_x, cluster_y = cluster['center']
+                    distance = np.sqrt((x - cluster_x)**2 + (y - cluster_y)**2)
+                    
+                    if distance < 50:  # 50 pixel threshold for consensus
+                        cluster['positions'].append((x, y, conf, source))
+                        cluster['total_conf'] += conf
+                        cluster['count'] += 1
+                        added_to_cluster = True
+                        break
+                
+                if not added_to_cluster:
+                    clusters.append({
+                        'center': (x, y),
+                        'positions': [(x, y, conf, source)],
+                        'total_conf': conf,
+                        'count': 1
+                    })
+            
+            # Find the best cluster (highest consensus + confidence)
+            best_cluster = None
+            best_score = 0
+            
+            for cluster in clusters:
+                # Consensus score: number of agreeing models
+                consensus_score = cluster['count'] / len(predictions)
+                # Combined confidence score
+                avg_conf = cluster['total_conf'] / cluster['count']
+                # Final score: consensus + confidence
+                final_score = consensus_score * 0.6 + avg_conf * 0.4
+                
+                if final_score > best_score:
+                    best_score = final_score
+                    best_cluster = cluster
+            
+            if best_cluster and best_cluster['count'] >= 2:
+                # We have consensus! Boost confidence
+                x, y = best_cluster['center']
+                boosted_conf = min(1.0, best_cluster['total_conf'] / best_cluster['count'] * 1.2)
+                
+                logger.info(f"TRIPLE FUSION CONSENSUS: {best_cluster['count']}/{len(predictions)} models agree at ({x}, {y})")
+                
+                return {
+                    'position': [int(x), int(y)],
+                    'confidence': boosted_conf,
+                    'source': f'consensus_{best_cluster["count"]}models',
+                    'consensus_count': best_cluster['count'],
+                    'total_models': len(predictions)
+                }
+        
+        # No consensus - use weighted average
+        return self._combine_predictions_weighted(tracknet_pred, yolo_pred, rfdetr_pred)
+    
+    def _combine_predictions_weighted(self, tracknet_pred: Optional[Dict], yolo_pred: Optional[Dict], rfdetr_pred: Optional[Dict]) -> Optional[Dict]:
+        """Weighted combination when no consensus is reached"""
+        predictions = []
+        weights = []
+        
+        if tracknet_pred:
+            predictions.append(tracknet_pred)
+            weights.append(0.35)  # TrackNet: 35% weight
+        
+        if yolo_pred:
+            predictions.append(yolo_pred)
+            weights.append(0.25)  # YOLO: 25% weight
+        
+        if rfdetr_pred:
+            predictions.append(rfdetr_pred)
+            weights.append(0.40)  # RF-DETR: 40% weight (highest weight)
+        
+        if not predictions:
+            return None
+        
+        if len(predictions) == 1:
+            return predictions[0]
+        
+        # Weighted average
+        total_weight = sum(weights)
+        weighted_x = 0
+        weighted_y = 0
+        weighted_conf = 0
+        
+        for pred, weight in zip(predictions, weights):
+            pos = pred['position']
+            conf = pred['confidence']
+            normalized_weight = weight / total_weight
+            
+            weighted_x += pos[0] * normalized_weight
+            weighted_y += pos[1] * normalized_weight
+            weighted_conf += conf * normalized_weight
+        
+        return {
+            'position': [int(weighted_x), int(weighted_y)],
+            'confidence': weighted_conf,
+            'source': 'weighted_fusion'
+        }
     
 
     
@@ -782,22 +1053,34 @@ class TennisAnalysisDemo:
         return (x2 - x1, y2 - y1)
     
     def _draw_ball_tracking(self, frame: np.ndarray, ball_pred: Dict) -> np.ndarray:
-        """Draw ball tracking visualization with single color (no trajectory line)"""
+        """Draw ball tracking visualization with RF-DETR priority colors"""
         x, y = ball_pred['position']
         conf = ball_pred['confidence']
+        source = ball_pred.get('source', 'unknown')
         
-        # Use single color for ball detection (orange)
-        color = (0, 165, 255)  # BGR format - orange
+        # Color coding based on detection source
+        if 'rfdetr' in source:
+            # RF-DETR primary detection - BLUE (highest priority)
+            color = (255, 0, 0)  # BGR format - blue
+            label = f"RF-DETR: {conf:.2f}"
+        elif 'fallback' in source:
+            # Fallback detection - ORANGE
+            color = (0, 165, 255)  # BGR format - orange
+            label = f"Fallback: {conf:.2f}"
+        else:
+            # Unknown source - GREEN
+            color = (0, 255, 0)  # BGR format - green
+            label = f"{conf:.2f}"
         
         # Draw ball position
         cv2.circle(frame, (x, y), 8, color, -1)
         cv2.circle(frame, (x, y), 12, color, 2)
         
-        # Draw confidence
-        cv2.putText(frame, f"{conf:.2f}", (x + 15, y - 15), 
+        # Draw label with source info
+        cv2.putText(frame, label, (x + 15, y - 15), 
                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
         
-        # Draw subtle orange tail using recent ball positions
+        # Draw subtle tail using recent ball positions
         if len(self.ball_positions) >= 3:
             # Get last 3 ball positions for tail
             tail_positions = list(self.ball_positions)[-3:]
@@ -832,6 +1115,14 @@ class TennisAnalysisDemo:
             f"Court Keypoints: {self.analysis_results['keypoints_detected']}"  # NEW
         ]
         
+        # NEW: RF-DETR statistics
+        if self.rfdetr_player_detector:
+            stats_text.append(f"RF-DETR Players: {self.analysis_results['rfdetr_player_detections']}")
+        if self.rfdetr_ball_detector:
+            stats_text.append(f"RF-DETR Balls: {self.analysis_results['rfdetr_ball_detections']}")
+        if self.yolo_fallback_detector:
+            stats_text.append(f"YOLO Fallback: {self.analysis_results['yolo_fallback_detections']}")
+        
         y_offset = 60
         for stat in stats_text:
             cv2.putText(frame, stat, (10, y_offset), 
@@ -865,6 +1156,14 @@ class TennisAnalysisDemo:
         print(f"Combined ball detections: {self.analysis_results['combined_ball_detections']}")
         print(f"Court detections: {self.analysis_results['court_detections']}")  # NEW
         print(f"Court keypoints detected: {self.analysis_results['keypoints_detected']}")  # NEW
+        
+        # NEW: RF-DETR statistics
+        if self.rfdetr_player_detector:
+            print(f"RF-DETR player detections: {self.analysis_results['rfdetr_player_detections']}")
+        if self.rfdetr_ball_detector:
+            print(f"RF-DETR ball detections: {self.analysis_results['rfdetr_ball_detections']}")
+        if self.yolo_fallback_detector:
+            print(f"YOLO fallback detections: {self.analysis_results['yolo_fallback_detections']}")
         
         if self.analysis_results['processing_times']:
             avg_time = np.mean(self.analysis_results['processing_times'])
@@ -1257,6 +1556,185 @@ class PlayerDetector:
                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
         
         return frame_copy
+
+
+class RFDETRPlayerDetector:
+    """RF-DETR-based player detection with tennis-specific filtering"""
+    
+    def __init__(self, model_path: str, config: Dict[str, Any]):
+        self.config = config
+        try:
+            # Load checkpoint first to get configuration
+            checkpoint = torch.load(model_path, map_location='cpu')
+            if 'args' in checkpoint and 'model' in checkpoint:
+                args = checkpoint['args']
+                logger.info(f"RF-DETR model with {args.num_classes} classes: {args.class_names}")
+                
+                # Create RF-DETR with custom classes
+                self.model = RFDETRNano(
+                    num_classes=len(args.class_names),  # 2 classes: ball + player
+                    pretrain_weights=None  # Don't load default weights
+                )
+                
+                # Load custom state dict
+                missing_keys, unexpected_keys = self.model.model.model.load_state_dict(checkpoint['model'], strict=False)
+                if missing_keys:
+                    logger.warning(f"Missing keys when loading RF-DETR: {len(missing_keys)}")
+                if unexpected_keys:
+                    logger.warning(f"Unexpected keys when loading RF-DETR: {len(unexpected_keys)}")
+                
+                # Set class names
+                try:
+                    self.model.class_names = args.class_names
+                except:
+                    self.model.model.class_names = args.class_names
+                
+                self.args = args
+                logger.info("RF-DETR player detector initialized successfully")
+            else:
+                logger.error("Invalid RF-DETR checkpoint format")
+                self.model = None
+        except Exception as e:
+            logger.error(f"Error loading RF-DETR model: {e}")
+            self.model = None
+    
+    def detect_players(self, frame: np.ndarray) -> List[Dict[str, Any]]:
+        if not self.model:
+            return []
+        
+        try:
+            # Convert BGR to RGB and to PIL
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            from PIL import Image
+            pil_image = Image.fromarray(frame_rgb)
+            
+            # Run inference
+            detections = self.model.predict(pil_image, threshold=self.config.get('player_conf_threshold', 0.3))
+            
+            # Filter for players only
+            players = []
+            for i in range(len(detections.xyxy)):
+                bbox = detections.xyxy[i]
+                confidence = detections.confidence[i]
+                class_id = detections.class_id[i]
+                
+                # Only keep players (class_id == 2 for 'player' based on our model)
+                if class_id == 2 and confidence > self.config.get('player_conf_threshold', 0.3):
+                    x1, y1, x2, y2 = bbox
+                    bbox_center_x = (x1 + x2) / 2
+                    bbox_center_y = (y1 + y2) / 2
+                    
+                    # Court position scoring - players should be in center area
+                    frame_center_x = frame.shape[1] / 2
+                    frame_center_y = frame.shape[0] / 2
+                    distance_from_center = abs(bbox_center_x - frame_center_x) + abs(bbox_center_y - frame_center_y)
+                    
+                    # Combined score: confidence + court position
+                    court_score = confidence - (distance_from_center / 2000)
+                    
+                    detection = {
+                        'bbox': [int(x1), int(y1), int(x2), int(y2)],
+                        'confidence': float(confidence),
+                        'class': int(class_id),
+                        'center': [int(bbox_center_x), int(bbox_center_y)],
+                        'court_score': court_score
+                    }
+                    players.append(detection)
+            
+            # Sort by court score and keep top 2 players
+            players.sort(key=lambda x: x['court_score'], reverse=True)
+            players = players[:self.config.get('max_players', 2)]
+            
+            logger.info(f"RF-DETR detected {len(players)} players")
+            return players
+            
+        except Exception as e:
+            logger.error(f"RF-DETR player detection error: {e}")
+            return []
+    
+    def draw_detections(self, frame: np.ndarray, detections: List[Dict[str, Any]]) -> np.ndarray:
+        frame_copy = frame.copy()
+        
+        for detection in detections:
+            x1, y1, x2, y2 = detection['bbox']
+            conf = detection['confidence']
+            court_score = detection.get('court_score', 0.0)
+            
+            # Color for RF-DETR players (blue to distinguish from YOLO)
+            color = (255, 0, 0)  # BGR format - blue
+            
+            # Draw bounding box
+            cv2.rectangle(frame_copy, (x1, y1), (x2, y2), color, 2)
+            
+            # Draw label with court score
+            label = f"RF-Player: {conf:.2f} (CS:{court_score:.2f})"
+            cv2.putText(frame_copy, label, (x1, y1-10), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+        
+        return frame_copy
+
+
+class RFDETRBallDetector:
+    """RF-DETR-based ball detection for tennis"""
+    
+    def __init__(self, model_path: str, config: Dict[str, Any]):
+        # Reuse the same model from player detector
+        self.config = config
+        # The model is already loaded in RFDETRPlayerDetector
+        # We'll access it through the player detector instance
+    
+    def detect_ball(self, frame: np.ndarray, player_detector_instance) -> Optional[Dict[str, Any]]:
+        if not player_detector_instance or not player_detector_instance.model:
+            return None
+        
+        try:
+            # Convert BGR to RGB and to PIL
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            from PIL import Image
+            pil_image = Image.fromarray(frame_rgb)
+            
+            # Run inference
+            detections = player_detector_instance.model.predict(pil_image, threshold=self.config.get('ball_conf_threshold', 0.2))
+            
+            # Filter for ball only
+            balls = []
+            logger.info(f"🔍 RF-DETR raw detections: {len(detections.xyxy)} total")
+            
+            for i in range(len(detections.xyxy)):
+                bbox = detections.xyxy[i]
+                confidence = detections.confidence[i]
+                class_id = detections.class_id[i]
+                
+                logger.info(f"🔍 Detection {i}: class_id={class_id}, confidence={confidence:.3f}, bbox={bbox}")
+                
+                # Only keep balls (class_id == 1 for 'ball' based on our model)
+                if class_id == 1 and confidence > self.config.get('ball_conf_threshold', 0.2):
+                    x1, y1, x2, y2 = bbox
+                    center_x = int((x1 + x2) / 2)
+                    center_y = int((y1 + y2) / 2)
+                    
+                    detection = {
+                        'position': [center_x, center_y],
+                        'confidence': float(confidence),
+                        'bbox': [int(x1), int(y1), int(x2), int(y2)],
+                        'source': 'rfdetr'
+                    }
+                    balls.append(detection)
+                    logger.info(f"✅ Added ball detection: pos=({center_x}, {center_y}), conf={confidence:.3f}")
+                else:
+                    logger.info(f"❌ Filtered out: class_id={class_id} (not ball) or confidence={confidence:.3f} < {self.config.get('ball_conf_threshold', 0.2)}")
+            
+            # Return highest confidence ball
+            if balls:
+                balls.sort(key=lambda x: x['confidence'], reverse=True)
+                logger.info(f"RF-DETR ball detection: pos=({balls[0]['position'][0]}, {balls[0]['position'][1]}), conf={balls[0]['confidence']:.3f}")
+                return balls[0]
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"RF-DETR ball detection error: {e}")
+            return None
 
 
 class PoseEstimator:

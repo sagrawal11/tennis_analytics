@@ -25,11 +25,15 @@ logger = logging.getLogger(__name__)
 class TennisAnalyticsViewer:
     """Analytics viewer that reads CSV data and visualizes overlays"""
     
-    def __init__(self, config_path: str = "config.yaml"):
+    def __init__(self, config_path: str = "config.yaml", output_path: str = None):
         """Initialize the analytics viewer"""
         self.config = self._load_config(config_path)
         self.frame_width = 1920
         self.frame_height = 1080
+        
+        # Video output setup
+        self.output_path = output_path
+        self.video_writer = None
         
         # Data storage
         self.csv_data = None
