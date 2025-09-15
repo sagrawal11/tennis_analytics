@@ -567,22 +567,35 @@ class TennisAnalysisDemo:
                 frame_data['detection_source'] = 'yolo_fallback'
                 logger.info(f"🔍 FRAME {frame_num}: Detection source: YOLO fallback")
             
-            # Store player data
+            # Sort players by y-coordinate (top to bottom) for consistent ordering
+            logger.info(f"🔍 FRAME {frame_num}: Sorting players by position for consistent ordering...")
+            player_data = []
             for i, detection in enumerate(player_detections):
-                logger.info(f"🔍 FRAME {frame_num}: Processing player {i+1}/{len(player_detections)}...")
                 if 'bbox' in detection:
                     x1, y1, x2, y2 = detection['bbox']
-                    frame_data['player_bboxes'].append(f"{x1},{y1},{x2},{y2}")
-                    frame_data['player_confidences'].append(detection.get('confidence', 0.0))
-                    
-                    # Calculate player speed
-                    logger.info(f"🔍 FRAME {frame_num}: Calculating speed for player {i+1}...")
-                    player_speed = self._calculate_player_speed([x1, y1, x2, y2], frame_data['timestamp'])
-                    frame_data['player_speeds'].append(player_speed)
-                    
-                    # Detect shot type (will be updated after ball detection)
-                    frame_data['player_shot_types'].append("unknown")
-                    logger.info(f"🔍 FRAME {frame_num}: Player {i+1} processed successfully")
+                    center_y = (y1 + y2) / 2  # Calculate center y-coordinate
+                    player_data.append({
+                        'bbox': [x1, y1, x2, y2],
+                        'center_y': center_y,
+                        'confidence': detection.get('confidence', 0.0),
+                        'original_index': i
+                    })
+            
+            # Sort by y-coordinate (top player = index 0, bottom player = index 1)
+            player_data.sort(key=lambda x: x['center_y'])
+            
+            # Store player data in consistent order
+            for i, player in enumerate(player_data):
+                x1, y1, x2, y2 = player['bbox']
+                frame_data['player_bboxes'].append(f"{x1},{y1},{x2},{y2}")
+                frame_data['player_confidences'].append(player['confidence'])
+                
+                # Calculate player speed
+                player_speed = self._calculate_player_speed([x1, y1, x2, y2], frame_data['timestamp'])
+                frame_data['player_speeds'].append(player_speed)
+                
+                # Detect shot type (will be updated after ball detection)
+                frame_data['player_shot_types'].append("unknown")
         else:
             logger.warning(f"🔍 FRAME {frame_num}: No players detected by any model")
             frame_data['detection_source'] = 'none'
