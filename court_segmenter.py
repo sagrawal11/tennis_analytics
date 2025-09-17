@@ -112,59 +112,59 @@ class CourtSegmenter:
         colors_4_zones = [(255, 100, 100), (100, 255, 100), (100, 100, 255), (255, 255, 100)]  # Red, Green, Blue, Yellow
         colors_3_zones = [(255, 100, 255), (100, 255, 255), (255, 200, 100)]  # Magenta, Cyan, Orange
         
-        # Main court zones (1-14)
-        # Region 1: Points 10, 5, 11, 7 (4 vertical zones) - Zones 1-4
+        # Main court zones with Duke tennis terminology
+        # Region 1: Points 10, 5, 11, 7 (4 vertical zones) - A, B, C, D
         if (valid_points[10] and valid_points[5] and valid_points[11] and valid_points[7]):
             p10, p5, p11, p7 = valid_points[10], valid_points[5], valid_points[11], valid_points[7]
-            self._create_4_vertical_zones(p10, p5, p11, p7, colors_4_zones, 'region1', 1)
+            self._create_4_vertical_zones(p10, p5, p11, p7, colors_4_zones, 'region1', ['A', 'B', 'C', 'D'])
         
-        # Region 2: Points 4, 8, 6, 9 (4 vertical zones) - Zones 5-8
+        # Region 2: Points 4, 8, 6, 9 (4 vertical zones) - A, B, C, D
         if (valid_points[4] and valid_points[8] and valid_points[6] and valid_points[9]):
             p4, p8, p6, p9 = valid_points[4], valid_points[8], valid_points[6], valid_points[9]
-            self._create_4_vertical_zones(p4, p8, p6, p9, colors_4_zones, 'region2', 5)
+            self._create_4_vertical_zones(p4, p8, p6, p9, colors_4_zones, 'region2', ['A', 'B', 'C', 'D'])
         
-        # Region 3: Points 8, 10, 12, 13 (3 vertical zones) - Zones 9-11
+        # Region 3: Points 8, 10, 12, 13 (3 vertical zones) - BROAD, MID, TEE
         if (valid_points[8] and valid_points[10] and valid_points[12] and valid_points[13]):
             p8, p10, p12, p13 = valid_points[8], valid_points[10], valid_points[12], valid_points[13]
-            self._create_3_vertical_zones(p8, p10, p12, p13, colors_3_zones, 'region3', 9)
+            self._create_3_vertical_zones(p8, p10, p12, p13, colors_3_zones, 'region3', ['BROAD', 'MID', 'TEE'])
         
-        # Region 4: Points 9, 11, 12, 13 (3 vertical zones) - Zones 12-14
+        # Region 4: Points 9, 11, 12, 13 (3 vertical zones) - BROAD, MID, TEE
         if (valid_points[9] and valid_points[11] and valid_points[12] and valid_points[13]):
             p9, p11, p12, p13 = valid_points[9], valid_points[11], valid_points[12], valid_points[13]
-            self._create_3_vertical_zones(p9, p11, p12, p13, colors_3_zones, 'region4', 12)
+            self._create_3_vertical_zones(p9, p11, p12, p13, colors_3_zones, 'region4', ['BROAD', 'MID', 'TEE'])
         
-        # Doubles lane zones (15-18)
+        # Doubles lane zones with Duke tennis terminology
         doubles_colors = [(200, 200, 200), (150, 150, 150), (100, 100, 100), (50, 50, 50)]  # Gray shades
         
-        # Left doubles lane: Points 2, 5, 10 (need to find 4th point)
+        # Left doubles lane: Points 2, 5, 10 (need to find 4th point) - AA
         if (valid_points[2] and valid_points[5] and valid_points[10]):
             p2, p5, p10 = valid_points[2], valid_points[5], valid_points[10]
             p4th = self._find_rectangle_4th_point(p2, p5, p10, "left_doubles")
-            self._create_single_zone([p2, p5, p10, p4th], doubles_colors[0], 'doubles_left', 15)
+            self._create_single_zone([p2, p5, p10, p4th], doubles_colors[0], 'doubles_left', 'AA')
         
-        # Right doubles lane: Points 3, 7, 11 (need to find 4th point)
+        # Right doubles lane: Points 3, 7, 11 (need to find 4th point) - DD
         if (valid_points[3] and valid_points[7] and valid_points[11]):
             p3, p7, p11 = valid_points[3], valid_points[7], valid_points[11]
             p4th = self._find_rectangle_4th_point(p3, p7, p11, "right_doubles")
-            self._create_single_zone([p3, p7, p11, p4th], doubles_colors[1], 'doubles_right', 16)
+            self._create_single_zone([p3, p7, p11, p4th], doubles_colors[1], 'doubles_right', 'DD')
         
-        # Top doubles lane: Points 0, 4, 8 (need to find 4th point)
+        # Top doubles lane: Points 0, 4, 8 (need to find 4th point) - AA
         if (valid_points[0] and valid_points[4] and valid_points[8]):
             p0, p4, p8 = valid_points[0], valid_points[4], valid_points[8]
             p4th = self._find_rectangle_4th_point(p0, p4, p8, "top_doubles")
-            self._create_single_zone([p0, p4, p8, p4th], doubles_colors[2], 'doubles_top', 17)
+            self._create_single_zone([p0, p4, p8, p4th], doubles_colors[2], 'doubles_top', 'AA')
         
-        # Bottom doubles lane: Points 1, 6, 9 (need to find 4th point)
+        # Bottom doubles lane: Points 1, 6, 9 (need to find 4th point) - DD
         if (valid_points[1] and valid_points[6] and valid_points[9]):
             p1, p6, p9 = valid_points[1], valid_points[6], valid_points[9]
             p4th = self._find_rectangle_4th_point(p1, p6, p9, "bottom_doubles")
-            self._create_single_zone([p1, p6, p9, p4th], doubles_colors[3], 'doubles_bottom', 18)
+            self._create_single_zone([p1, p6, p9, p4th], doubles_colors[3], 'doubles_bottom', 'DD')
         
         logger.info(f"Court zones calculated with {len([p for p in valid_points if p is not None])} keypoints")
-        logger.info("Main court zones: 1-14")
-        logger.info("Doubles lane zones: 15-18")
+        logger.info("Main court zones: A, B, C, D (service boxes) + BROAD, MID, TEE (baseline)")
+        logger.info("Doubles lane zones: AA (left/top) + DD (right/bottom)")
     
-    def _create_4_vertical_zones(self, p1, p2, p3, p4, colors, region_name, start_zone_num):
+    def _create_4_vertical_zones(self, p1, p2, p3, p4, colors, region_name, zone_names):
         """Create 4 vertical zones from 4 corner points using homography"""
         # Define the source rectangle (ideal court geometry)
         # We'll create a perfect rectangle and then transform it to match the actual court
@@ -191,7 +191,7 @@ class CourtSegmenter:
         quarter_width = src_width / 4
         
         for i in range(4):
-            zone_name = f'zone_{start_zone_num + i}'
+            zone_name = f'{region_name}_{zone_names[i]}'
             left_x = i * quarter_width
             right_x = (i + 1) * quarter_width
             
@@ -211,10 +211,10 @@ class CourtSegmenter:
             self.zone_definitions[zone_name] = {
                 'points': transformed_corners.astype(np.int32),
                 'color': colors[i],
-                'name': f'Zone {start_zone_num + i}'
+                'name': zone_names[i]
             }
     
-    def _create_3_vertical_zones(self, p1, p2, p3, p4, colors, region_name, start_zone_num):
+    def _create_3_vertical_zones(self, p1, p2, p3, p4, colors, region_name, zone_names):
         """Create 3 vertical zones from 4 corner points using homography"""
         # Define the source rectangle (ideal court geometry)
         src_width = 1000  # Arbitrary width for ideal rectangle
@@ -239,7 +239,7 @@ class CourtSegmenter:
         third_width = src_width / 3
         
         for i in range(3):
-            zone_name = f'zone_{start_zone_num + i}'
+            zone_name = f'{region_name}_{zone_names[i]}'
             left_x = i * third_width
             right_x = (i + 1) * third_width
             
@@ -259,7 +259,7 @@ class CourtSegmenter:
             self.zone_definitions[zone_name] = {
                 'points': transformed_corners.astype(np.int32),
                 'color': colors[i],
-                'name': f'Zone {start_zone_num + i}'
+                'name': zone_names[i]
             }
     
     def _order_rectangle_corners(self, corners):
@@ -416,7 +416,7 @@ class CourtSegmenter:
         
         return np.array([x, y])
     
-    def _create_single_zone(self, corners, color, zone_name, zone_number):
+    def _create_single_zone(self, corners, color, zone_name, zone_label):
         """Create a single zone from 4 corner points using homography"""
         # Define the source rectangle (ideal court geometry)
         src_width = 1000
@@ -450,10 +450,10 @@ class CourtSegmenter:
             ideal_zone_corners.reshape(-1, 1, 2), homography
         ).reshape(-1, 2)
         
-        self.zone_definitions[f'zone_{zone_number}'] = {
+        self.zone_definitions[zone_name] = {
             'points': transformed_corners.astype(np.int32),
             'color': color,
-            'name': f'Zone {zone_number}'
+            'name': zone_label
         }
     
     def get_zone_for_point(self, x: float, y: float) -> Optional[str]:
@@ -491,8 +491,27 @@ class CourtSegmenter:
                 if 'name' in zone_data:
                     # Get center of zone for label
                     center = np.mean(zone_data['points'], axis=0).astype(int)
-                    cv2.putText(overlay, zone_data['name'], (center[0] - 50, center[1]), 
-                               cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+                    
+                    # Draw zone name with larger, more visible text
+                    font_scale = 1.2
+                    thickness = 3
+                    text_color = (255, 255, 255)  # White text
+                    outline_color = (0, 0, 0)     # Black outline
+                    
+                    # Get text size for centering
+                    text_size = cv2.getTextSize(zone_data['name'], cv2.FONT_HERSHEY_SIMPLEX, font_scale, thickness)[0]
+                    text_x = center[0] - text_size[0] // 2
+                    text_y = center[1] + text_size[1] // 2
+                    
+                    # Draw black outline
+                    cv2.putText(overlay, zone_data['name'], (text_x - 1, text_y - 1), 
+                               cv2.FONT_HERSHEY_SIMPLEX, font_scale, outline_color, thickness + 2)
+                    cv2.putText(overlay, zone_data['name'], (text_x + 1, text_y + 1), 
+                               cv2.FONT_HERSHEY_SIMPLEX, font_scale, outline_color, thickness + 2)
+                    
+                    # Draw white text
+                    cv2.putText(overlay, zone_data['name'], (text_x, text_y), 
+                               cv2.FONT_HERSHEY_SIMPLEX, font_scale, text_color, thickness)
         
         # Blend overlay with original frame
         alpha = 0.3  # Transparency
@@ -673,7 +692,24 @@ class CourtSegmentationProcessor:
             # Get zone for ball
             zone = self.court_segmenter.get_zone_for_point(ball_x, ball_y)
             if zone:
-                cv2.putText(frame, f"Zone: {zone}", (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+                # Draw zone info with larger, more visible text
+                font_scale = 1.0
+                thickness = 2
+                text_color = (255, 255, 255)  # White text
+                outline_color = (0, 0, 0)     # Black outline
+                
+                zone_text = f"Ball Zone: {zone}"
+                text_size = cv2.getTextSize(zone_text, cv2.FONT_HERSHEY_SIMPLEX, font_scale, thickness)[0]
+                
+                # Draw black outline
+                cv2.putText(frame, zone_text, (9, 69), 
+                           cv2.FONT_HERSHEY_SIMPLEX, font_scale, outline_color, thickness + 2)
+                cv2.putText(frame, zone_text, (11, 71), 
+                           cv2.FONT_HERSHEY_SIMPLEX, font_scale, outline_color, thickness + 2)
+                
+                # Draw white text
+                cv2.putText(frame, zone_text, (10, 70), 
+                           cv2.FONT_HERSHEY_SIMPLEX, font_scale, text_color, thickness)
         
         return frame
 
