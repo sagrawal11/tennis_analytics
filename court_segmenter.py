@@ -29,18 +29,7 @@ class CourtSegmenter:
     def __init__(self):
         """Initialize court segmenter"""
         self.court_keypoints = None
-        self.court_zones = {}
-        
-        # Define court zones based on tennis strategy
-        # These will be calculated from court keypoints
-        self.zone_definitions = {
-            'service_box_left': None,
-            'service_box_right': None,
-            'baseline_left': None,
-            'baseline_right': None,
-            'net_area': None,
-            'no_mans_land': None
-        }
+        self.zone_definitions = {}
         
         logger.info("Court segmenter initialized")
     
@@ -102,96 +91,370 @@ class CourtSegmenter:
             return []
     
     def _calculate_court_zones(self):
-        """Calculate court zones based on keypoints"""
-        if not self.court_keypoints or len(self.court_keypoints) < 4:
-            logger.warning("Not enough court keypoints for zone calculation")
+        """Calculate court zones based on actual court keypoints"""
+        if not self.court_keypoints or len(self.court_keypoints) < 14:
+            logger.warning("Not enough court keypoints for zone calculation (need 14)")
             return
         
-        # Extract valid keypoints
+        # Extract valid keypoints (court keypoints are 0-indexed)
         valid_points = []
         for point in self.court_keypoints:
             if point[0] is not None and point[1] is not None:
                 valid_points.append((int(point[0]), int(point[1])))
+            else:
+                valid_points.append(None)
         
-        if len(valid_points) < 4:
+        if len([p for p in valid_points if p is not None]) < 14:
             logger.warning("Not enough valid court keypoints for zone calculation")
             return
         
-        # For now, use a simple rectangular court assumption
-        # In a real implementation, we'd use the actual court keypoints
-        # to define proper service boxes, baselines, etc.
+        # Define colors for different zone types
+        colors_4_zones = [(255, 100, 100), (100, 255, 100), (100, 100, 255), (255, 255, 100)]  # Red, Green, Blue, Yellow
+        colors_3_zones = [(255, 100, 255), (100, 255, 255), (255, 200, 100)]  # Magenta, Cyan, Orange
         
-        # Get court bounds
-        x_coords = [p[0] for p in valid_points]
-        y_coords = [p[1] for p in valid_points]
+        # Main court zones (1-14)
+        # Region 1: Points 10, 5, 11, 7 (4 vertical zones) - Zones 1-4
+        if (valid_points[10] and valid_points[5] and valid_points[11] and valid_points[7]):
+            p10, p5, p11, p7 = valid_points[10], valid_points[5], valid_points[11], valid_points[7]
+            self._create_4_vertical_zones(p10, p5, p11, p7, colors_4_zones, 'region1', 1)
         
-        min_x, max_x = min(x_coords), max(x_coords)
-        min_y, max_y = min(y_coords), max(y_coords)
+        # Region 2: Points 4, 8, 6, 9 (4 vertical zones) - Zones 5-8
+        if (valid_points[4] and valid_points[8] and valid_points[6] and valid_points[9]):
+            p4, p8, p6, p9 = valid_points[4], valid_points[8], valid_points[6], valid_points[9]
+            self._create_4_vertical_zones(p4, p8, p6, p9, colors_4_zones, 'region2', 5)
         
-        # Calculate court dimensions
-        court_width = max_x - min_x
-        court_height = max_y - min_y
+        # Region 3: Points 8, 10, 12, 13 (3 vertical zones) - Zones 9-11
+        if (valid_points[8] and valid_points[10] and valid_points[12] and valid_points[13]):
+            p8, p10, p12, p13 = valid_points[8], valid_points[10], valid_points[12], valid_points[13]
+            self._create_3_vertical_zones(p8, p10, p12, p13, colors_3_zones, 'region3', 9)
         
-        # Define zones (simplified rectangular approximation)
-        # Service boxes (top half, divided into left and right)
-        service_y = min_y + court_height * 0.4  # Service line approximately 40% down
-        service_mid_x = min_x + court_width * 0.5  # Middle of court
+        # Region 4: Points 9, 11, 12, 13 (3 vertical zones) - Zones 12-14
+        if (valid_points[9] and valid_points[11] and valid_points[12] and valid_points[13]):
+            p9, p11, p12, p13 = valid_points[9], valid_points[11], valid_points[12], valid_points[13]
+            self._create_3_vertical_zones(p9, p11, p12, p13, colors_3_zones, 'region4', 12)
         
-        self.zone_definitions = {
-            'service_box_left': {
-                'points': np.array([
-                    [min_x, min_y],
-                    [service_mid_x, min_y],
-                    [service_mid_x, service_y],
-                    [min_x, service_y]
-                ], dtype=np.int32),
-                'color': (0, 255, 255),  # Yellow
-                'name': 'Service Box Left'
-            },
-            'service_box_right': {
-                'points': np.array([
-                    [service_mid_x, min_y],
-                    [max_x, min_y],
-                    [max_x, service_y],
-                    [service_mid_x, service_y]
-                ], dtype=np.int32),
-                'color': (0, 255, 255),  # Yellow
-                'name': 'Service Box Right'
-            },
-            'baseline_left': {
-                'points': np.array([
-                    [min_x, service_y],
-                    [service_mid_x, service_y],
-                    [service_mid_x, max_y],
-                    [min_x, max_y]
-                ], dtype=np.int32),
-                'color': (255, 0, 255),  # Magenta
-                'name': 'Baseline Left'
-            },
-            'baseline_right': {
-                'points': np.array([
-                    [service_mid_x, service_y],
-                    [max_x, service_y],
-                    [max_x, max_y],
-                    [service_mid_x, max_y]
-                ], dtype=np.int32),
-                'color': (255, 0, 255),  # Magenta
-                'name': 'Baseline Right'
-            },
-            'net_area': {
-                'points': np.array([
-                    [min_x, service_y - 20],
-                    [max_x, service_y - 20],
-                    [max_x, service_y + 20],
-                    [min_x, service_y + 20]
-                ], dtype=np.int32),
-                'color': (0, 255, 0),  # Green
-                'name': 'Net Area'
+        # Doubles lane zones (15-18)
+        doubles_colors = [(200, 200, 200), (150, 150, 150), (100, 100, 100), (50, 50, 50)]  # Gray shades
+        
+        # Left doubles lane: Points 2, 5, 10 (need to find 4th point)
+        if (valid_points[2] and valid_points[5] and valid_points[10]):
+            p2, p5, p10 = valid_points[2], valid_points[5], valid_points[10]
+            p4th = self._find_rectangle_4th_point(p2, p5, p10, "left_doubles")
+            self._create_single_zone([p2, p5, p10, p4th], doubles_colors[0], 'doubles_left', 15)
+        
+        # Right doubles lane: Points 3, 7, 11 (need to find 4th point)
+        if (valid_points[3] and valid_points[7] and valid_points[11]):
+            p3, p7, p11 = valid_points[3], valid_points[7], valid_points[11]
+            p4th = self._find_rectangle_4th_point(p3, p7, p11, "right_doubles")
+            self._create_single_zone([p3, p7, p11, p4th], doubles_colors[1], 'doubles_right', 16)
+        
+        # Top doubles lane: Points 0, 4, 8 (need to find 4th point)
+        if (valid_points[0] and valid_points[4] and valid_points[8]):
+            p0, p4, p8 = valid_points[0], valid_points[4], valid_points[8]
+            p4th = self._find_rectangle_4th_point(p0, p4, p8, "top_doubles")
+            self._create_single_zone([p0, p4, p8, p4th], doubles_colors[2], 'doubles_top', 17)
+        
+        # Bottom doubles lane: Points 1, 6, 9 (need to find 4th point)
+        if (valid_points[1] and valid_points[6] and valid_points[9]):
+            p1, p6, p9 = valid_points[1], valid_points[6], valid_points[9]
+            p4th = self._find_rectangle_4th_point(p1, p6, p9, "bottom_doubles")
+            self._create_single_zone([p1, p6, p9, p4th], doubles_colors[3], 'doubles_bottom', 18)
+        
+        logger.info(f"Court zones calculated with {len([p for p in valid_points if p is not None])} keypoints")
+        logger.info("Main court zones: 1-14")
+        logger.info("Doubles lane zones: 15-18")
+    
+    def _create_4_vertical_zones(self, p1, p2, p3, p4, colors, region_name, start_zone_num):
+        """Create 4 vertical zones from 4 corner points using homography"""
+        # Define the source rectangle (ideal court geometry)
+        # We'll create a perfect rectangle and then transform it to match the actual court
+        src_width = 1000  # Arbitrary width for ideal rectangle
+        src_height = 500  # Arbitrary height for ideal rectangle
+        
+        # Source rectangle corners (ideal geometry)
+        src_corners = np.array([
+            [0, 0],                    # Top-left
+            [src_width, 0],            # Top-right
+            [src_width, src_height],   # Bottom-right
+            [0, src_height]            # Bottom-left
+        ], dtype=np.float32)
+        
+        # Destination corners (actual court keypoints)
+        # We need to order them properly: top-left, top-right, bottom-right, bottom-left
+        dst_corners = self._order_rectangle_corners([p1, p2, p3, p4])
+        dst_corners = np.array(dst_corners, dtype=np.float32)
+        
+        # Calculate homography matrix
+        homography = cv2.getPerspectiveTransform(src_corners, dst_corners)
+        
+        # Create 4 vertical zones in the ideal space
+        quarter_width = src_width / 4
+        
+        for i in range(4):
+            zone_name = f'zone_{start_zone_num + i}'
+            left_x = i * quarter_width
+            right_x = (i + 1) * quarter_width
+            
+            # Define zone corners in ideal space
+            ideal_zone_corners = np.array([
+                [left_x, 0],
+                [right_x, 0],
+                [right_x, src_height],
+                [left_x, src_height]
+            ], dtype=np.float32)
+            
+            # Transform to actual court coordinates
+            transformed_corners = cv2.perspectiveTransform(
+                ideal_zone_corners.reshape(-1, 1, 2), homography
+            ).reshape(-1, 2)
+            
+            self.zone_definitions[zone_name] = {
+                'points': transformed_corners.astype(np.int32),
+                'color': colors[i],
+                'name': f'Zone {start_zone_num + i}'
             }
-        }
+    
+    def _create_3_vertical_zones(self, p1, p2, p3, p4, colors, region_name, start_zone_num):
+        """Create 3 vertical zones from 4 corner points using homography"""
+        # Define the source rectangle (ideal court geometry)
+        src_width = 1000  # Arbitrary width for ideal rectangle
+        src_height = 500  # Arbitrary height for ideal rectangle
         
-        logger.info(f"Court zones calculated with {len(valid_points)} keypoints")
-        logger.info(f"Court bounds: ({min_x}, {min_y}) to ({max_x}, {max_y})")
+        # Source rectangle corners (ideal geometry)
+        src_corners = np.array([
+            [0, 0],                    # Top-left
+            [src_width, 0],            # Top-right
+            [src_width, src_height],   # Bottom-right
+            [0, src_height]            # Bottom-left
+        ], dtype=np.float32)
+        
+        # Destination corners (actual court keypoints)
+        dst_corners = self._order_rectangle_corners([p1, p2, p3, p4])
+        dst_corners = np.array(dst_corners, dtype=np.float32)
+        
+        # Calculate homography matrix
+        homography = cv2.getPerspectiveTransform(src_corners, dst_corners)
+        
+        # Create 3 vertical zones in the ideal space
+        third_width = src_width / 3
+        
+        for i in range(3):
+            zone_name = f'zone_{start_zone_num + i}'
+            left_x = i * third_width
+            right_x = (i + 1) * third_width
+            
+            # Define zone corners in ideal space
+            ideal_zone_corners = np.array([
+                [left_x, 0],
+                [right_x, 0],
+                [right_x, src_height],
+                [left_x, src_height]
+            ], dtype=np.float32)
+            
+            # Transform to actual court coordinates
+            transformed_corners = cv2.perspectiveTransform(
+                ideal_zone_corners.reshape(-1, 1, 2), homography
+            ).reshape(-1, 2)
+            
+            self.zone_definitions[zone_name] = {
+                'points': transformed_corners.astype(np.int32),
+                'color': colors[i],
+                'name': f'Zone {start_zone_num + i}'
+            }
+    
+    def _order_rectangle_corners(self, corners):
+        """Order 4 corner points as top-left, top-right, bottom-right, bottom-left"""
+        # Convert to numpy array for easier manipulation
+        corners = np.array(corners)
+        
+        # Calculate centroid
+        centroid = np.mean(corners, axis=0)
+        
+        # Sort by angle from centroid
+        def angle_from_centroid(point):
+            return np.arctan2(point[1] - centroid[1], point[0] - centroid[0])
+        
+        # Sort corners by angle
+        sorted_indices = np.argsort([angle_from_centroid(corner) for corner in corners])
+        sorted_corners = corners[sorted_indices]
+        
+        # Now we need to identify which is which
+        # Find the point with minimum y (top) and minimum x (left) among top points
+        top_points = sorted_corners[sorted_corners[:, 1] <= np.median(sorted_corners[:, 1])]
+        bottom_points = sorted_corners[sorted_corners[:, 1] > np.median(sorted_corners[:, 1])]
+        
+        # Order top points by x
+        top_points = top_points[top_points[:, 0].argsort()]
+        # Order bottom points by x
+        bottom_points = bottom_points[bottom_points[:, 0].argsort()]
+        
+        # Return in order: top-left, top-right, bottom-right, bottom-left
+        return [top_points[0], top_points[1], bottom_points[1], bottom_points[0]]
+    
+    def _find_rectangle_4th_point(self, p1, p2, p3, zone_type="general"):
+        """Find the 4th point to complete a rectangle given 3 points"""
+        # Convert to numpy arrays
+        p1, p2, p3 = np.array(p1), np.array(p2), np.array(p3)
+        
+        if zone_type == "left_doubles":
+            # Left 4th: extend horizontally from point 10 (p3) and on line from 2 to 0
+            # We need to get points 2 and 0 from the court keypoints
+            if hasattr(self, 'court_keypoints') and self.court_keypoints:
+                valid_points = []
+                for point in self.court_keypoints:
+                    if point[0] is not None and point[1] is not None:
+                        valid_points.append((int(point[0]), int(point[1])))
+                    else:
+                        valid_points.append(None)
+                
+                if valid_points[2] and valid_points[0]:
+                    p2_ref = np.array(valid_points[2])
+                    p0_ref = np.array(valid_points[0])
+                    # Find intersection of horizontal line from p3 with line from p2_ref to p0_ref
+                    p4 = self._find_line_intersection(p3, p2_ref, p0_ref, horizontal=True)
+                else:
+                    p4 = p1 + p2 - p3  # Fallback
+            else:
+                p4 = p1 + p2 - p3  # Fallback
+                
+        elif zone_type == "right_doubles":
+            # Right 4th: extend horizontally from point 11 (p3) and on line from 1 to 3
+            if hasattr(self, 'court_keypoints') and self.court_keypoints:
+                valid_points = []
+                for point in self.court_keypoints:
+                    if point[0] is not None and point[1] is not None:
+                        valid_points.append((int(point[0]), int(point[1])))
+                    else:
+                        valid_points.append(None)
+                
+                if valid_points[1] and valid_points[3]:
+                    p1_ref = np.array(valid_points[1])
+                    p3_ref = np.array(valid_points[3])
+                    # Find intersection of horizontal line from p3 with line from p1_ref to p3_ref
+                    p4 = self._find_line_intersection(p3, p1_ref, p3_ref, horizontal=True)
+                else:
+                    p4 = p1 + p2 - p3  # Fallback
+            else:
+                p4 = p1 + p2 - p3  # Fallback
+                
+        elif zone_type == "top_doubles":
+            # Top 4th: extend horizontally from point 8 (p3) and on line from 0 to 2
+            if hasattr(self, 'court_keypoints') and self.court_keypoints:
+                valid_points = []
+                for point in self.court_keypoints:
+                    if point[0] is not None and point[1] is not None:
+                        valid_points.append((int(point[0]), int(point[1])))
+                    else:
+                        valid_points.append(None)
+                
+                if valid_points[0] and valid_points[2]:
+                    p0_ref = np.array(valid_points[0])
+                    p2_ref = np.array(valid_points[2])
+                    # Find intersection of horizontal line from p3 with line from p0_ref to p2_ref
+                    p4 = self._find_line_intersection(p3, p0_ref, p2_ref, horizontal=True)
+                else:
+                    p4 = p1 + p2 - p3  # Fallback
+            else:
+                p4 = p1 + p2 - p3  # Fallback
+                
+        elif zone_type == "bottom_doubles":
+            # Bottom 4th: extend horizontally from point 9 (p3) and on line from 1 to 3
+            if hasattr(self, 'court_keypoints') and self.court_keypoints:
+                valid_points = []
+                for point in self.court_keypoints:
+                    if point[0] is not None and point[1] is not None:
+                        valid_points.append((int(point[0]), int(point[1])))
+                    else:
+                        valid_points.append(None)
+                
+                if valid_points[1] and valid_points[3]:
+                    p1_ref = np.array(valid_points[1])
+                    p3_ref = np.array(valid_points[3])
+                    # Find intersection of horizontal line from p3 with line from p1_ref to p3_ref
+                    p4 = self._find_line_intersection(p3, p1_ref, p3_ref, horizontal=True)
+                else:
+                    p4 = p1 + p2 - p3  # Fallback
+            else:
+                p4 = p1 + p2 - p3  # Fallback
+        else:
+            # Fallback to diagonal method for any other zone types
+            d12 = np.linalg.norm(p1 - p2)
+            d13 = np.linalg.norm(p1 - p3)
+            d23 = np.linalg.norm(p2 - p3)
+            
+            if d12 >= d13 and d12 >= d23:
+                p4 = p1 + p2 - p3
+            elif d13 >= d12 and d13 >= d23:
+                p4 = p1 + p3 - p2
+            else:
+                p4 = p2 + p3 - p1
+        
+        return p4.astype(int).tolist()
+    
+    def _find_line_intersection(self, point, line_start, line_end, horizontal=True):
+        """Find intersection of horizontal/vertical line from point with another line"""
+        if horizontal:
+            # Horizontal line from point: y = point[1]
+            y = point[1]
+            # Line from line_start to line_end
+            if abs(line_end[0] - line_start[0]) < 1e-6:  # Vertical line
+                x = line_start[0]
+            else:
+                # Calculate x where y = point[1] on the line
+                slope = (line_end[1] - line_start[1]) / (line_end[0] - line_start[0])
+                x = line_start[0] + (y - line_start[1]) / slope
+        else:
+            # Vertical line from point: x = point[0]
+            x = point[0]
+            # Line from line_start to line_end
+            if abs(line_end[1] - line_start[1]) < 1e-6:  # Horizontal line
+                y = line_start[1]
+            else:
+                # Calculate y where x = point[0] on the line
+                slope = (line_end[1] - line_start[1]) / (line_end[0] - line_start[0])
+                y = line_start[1] + (x - line_start[0]) * slope
+        
+        return np.array([x, y])
+    
+    def _create_single_zone(self, corners, color, zone_name, zone_number):
+        """Create a single zone from 4 corner points using homography"""
+        # Define the source rectangle (ideal court geometry)
+        src_width = 1000
+        src_height = 500
+        
+        # Source rectangle corners (ideal geometry)
+        src_corners = np.array([
+            [0, 0],                    # Top-left
+            [src_width, 0],            # Top-right
+            [src_width, src_height],   # Bottom-right
+            [0, src_height]            # Bottom-left
+        ], dtype=np.float32)
+        
+        # Destination corners (actual court keypoints)
+        dst_corners = self._order_rectangle_corners(corners)
+        dst_corners = np.array(dst_corners, dtype=np.float32)
+        
+        # Calculate homography matrix
+        homography = cv2.getPerspectiveTransform(src_corners, dst_corners)
+        
+        # Define the entire zone in ideal space
+        ideal_zone_corners = np.array([
+            [0, 0],
+            [src_width, 0],
+            [src_width, src_height],
+            [0, src_height]
+        ], dtype=np.float32)
+        
+        # Transform to actual court coordinates
+        transformed_corners = cv2.perspectiveTransform(
+            ideal_zone_corners.reshape(-1, 1, 2), homography
+        ).reshape(-1, 2)
+        
+        self.zone_definitions[f'zone_{zone_number}'] = {
+            'points': transformed_corners.astype(np.int32),
+            'color': color,
+            'name': f'Zone {zone_number}'
+        }
     
     def get_zone_for_point(self, x: float, y: float) -> Optional[str]:
         """Get the zone name for a given point"""
@@ -252,7 +515,52 @@ class CourtSegmenter:
                 cv2.putText(frame, str(i), (x + 15, y - 15), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
         
+        # Draw calculated 4th points for doubles lanes
+        self._draw_calculated_4th_points(frame)
+        
         return frame
+    
+    def _draw_calculated_4th_points(self, frame: np.ndarray):
+        """Draw the calculated 4th points for doubles lane zones"""
+        if not self.court_keypoints:
+            return
+        
+        # Get valid keypoints
+        valid_points = []
+        for point in self.court_keypoints:
+            if point[0] is not None and point[1] is not None:
+                valid_points.append((int(point[0]), int(point[1])))
+            else:
+                valid_points.append(None)
+        
+        # Calculate and draw 4th points for each doubles lane
+        doubles_lanes = [
+            ([2, 5, 10], "Left", "left_doubles"),
+            ([3, 7, 11], "Right", "right_doubles"), 
+            ([0, 4, 8], "Top", "top_doubles"),
+            ([1, 6, 9], "Bottom", "bottom_doubles")
+        ]
+        
+        colors = [(255, 0, 255), (0, 255, 255), (255, 255, 0), (255, 128, 0)]  # Magenta, Cyan, Yellow, Orange
+        
+        for i, (point_indices, name, zone_type) in enumerate(doubles_lanes):
+            if all(valid_points[idx] for idx in point_indices):
+                p1, p2, p3 = [valid_points[idx] for idx in point_indices]
+                p4th = self._find_rectangle_4th_point(p1, p2, p3, zone_type)
+                
+                # Draw the 4th point
+                x, y = int(p4th[0]), int(p4th[1])
+                cv2.circle(frame, (x, y), 10, colors[i], -1)  # Filled circle
+                cv2.circle(frame, (x, y), 14, (255, 255, 255), 2)  # White outline
+                cv2.putText(frame, f"{name}4th", (x + 15, y - 15), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+                
+                # Draw lines connecting the 4 points to show the quadrilateral
+                points = [p1, p2, p3, p4th]
+                for j in range(4):
+                    pt1 = tuple(points[j])
+                    pt2 = tuple(points[(j + 1) % 4])
+                    cv2.line(frame, pt1, pt2, colors[i], 2)
 
 
 class CourtSegmentationProcessor:
