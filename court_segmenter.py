@@ -123,15 +123,15 @@ class CourtSegmenter:
             p4, p8, p6, p9 = valid_points[4], valid_points[8], valid_points[6], valid_points[9]
             self._create_4_vertical_zones(p4, p8, p6, p9, colors_4_zones, 'region2', ['A', 'B', 'C', 'D'])
         
-        # Region 3: Points 8, 10, 12, 13 (3 vertical zones) - BROAD, MID, TEE
+        # Region 3: Points 8, 10, 12, 13 (3 vertical zones) - WIDE, BODY, TEE
         if (valid_points[8] and valid_points[10] and valid_points[12] and valid_points[13]):
             p8, p10, p12, p13 = valid_points[8], valid_points[10], valid_points[12], valid_points[13]
-            self._create_3_vertical_zones(p8, p10, p12, p13, colors_3_zones, 'region3', ['BROAD', 'MID', 'TEE'])
+            self._create_3_vertical_zones(p8, p10, p12, p13, colors_3_zones, 'region3', ['WIDE', 'BODY', 'TEE'])
         
-        # Region 4: Points 9, 11, 12, 13 (3 vertical zones) - BROAD, MID, TEE
+        # Region 4: Points 9, 11, 12, 13 (3 vertical zones) - WIDE, BODY, TEE
         if (valid_points[9] and valid_points[11] and valid_points[12] and valid_points[13]):
             p9, p11, p12, p13 = valid_points[9], valid_points[11], valid_points[12], valid_points[13]
-            self._create_3_vertical_zones(p9, p11, p12, p13, colors_3_zones, 'region4', ['BROAD', 'MID', 'TEE'])
+            self._create_3_vertical_zones(p9, p11, p12, p13, colors_3_zones, 'region4', ['WIDE', 'BODY', 'TEE'])
         
         # Doubles lane zones with Duke tennis terminology
         doubles_colors = [(200, 200, 200), (150, 150, 150), (100, 100, 100), (50, 50, 50)]  # Gray shades
@@ -161,7 +161,7 @@ class CourtSegmenter:
             self._create_single_zone([p1, p6, p9, p4th], doubles_colors[3], 'doubles_bottom', 'DD')
         
         logger.info(f"Court zones calculated with {len([p for p in valid_points if p is not None])} keypoints")
-        logger.info("Main court zones: A, B, C, D (service boxes) + BROAD, MID, TEE (baseline)")
+        logger.info("Main court zones: A, B, C, D (service boxes) + WIDE, BODY, TEE (baseline)")
         logger.info("Doubles lane zones: AA (left/top) + DD (right/bottom)")
     
     def _create_4_vertical_zones(self, p1, p2, p3, p4, colors, region_name, zone_names):
