@@ -299,46 +299,98 @@ class HybridBallDetector:
 
     def assess_detection_quality(self, x: float, y: float, confidence: float, 
                                method: str) -> float:
-        """Assess the quality of a ball detection"""
+        """Assess the quality of a ball detection with improved logic"""
         if x is None or y is None or confidence < self.min_confidence_threshold:
             return 0.0
         
-        # Base quality from confidence
+        # Start with confidence as base quality
         quality = confidence
         
-        # Check for reasonable movement (not too far from previous detections)
+        # 1. Movement consistency analysis
+        movement_penalty = 0.0
         if len(self.detection_history) > 0:
             last_detection = self.detection_history[-1]
             if last_detection['x'] is not None and last_detection['y'] is not None:
                 distance = np.sqrt((x - last_detection['x'])**2 + (y - last_detection['y'])**2)
                 
-                # Penalize large jumps
+                # More aggressive penalties for large jumps
                 if distance > self.max_jump_distance:
-                    quality *= 0.3  # Heavy penalty for large jumps
+                    movement_penalty = 0.8  # Very heavy penalty
                 elif distance > 100:
-                    quality *= 0.7  # Moderate penalty for medium jumps
+                    movement_penalty = 0.4  # Heavy penalty
+                elif distance > 50:
+                    movement_penalty = 0.1  # Light penalty
                 else:
-                    quality *= 1.1  # Bonus for reasonable movement
+                    movement_penalty = -0.1  # Small bonus for reasonable movement
         
-        # Method-specific adjustments
+        # 2. Method-specific analysis
+        method_bonus = 0.0
         if method == "trace":
-            # TRACE tends to get stuck, so penalize if it hasn't moved much recently
-            if len(self.detection_history) >= 5:
-                recent_positions = [d for d in self.detection_history[-5:] if d['method'] == 'trace' and d['x'] is not None]
-                if len(recent_positions) >= 3:
-                    # Check if TRACE has been stuck in same area
-                    positions = [(d['x'], d['y']) for d in recent_positions]
+            # TRACE-specific penalties
+            if len(self.detection_history) >= 3:
+                # Check if TRACE has been stuck recently
+                recent_trace = [d for d in self.detection_history[-3:] if d['method'] == 'trace' and d['x'] is not None]
+                if len(recent_trace) >= 2:
+                    positions = [(d['x'], d['y']) for d in recent_trace]
                     variance = np.var(positions, axis=0).sum()
-                    if variance < 100:  # Low variance = stuck
-                        quality *= 0.5  # Penalize stuck detections
+                    if variance < 50:  # Very low variance = stuck
+                        method_bonus = -0.6  # Heavy penalty for stuck TRACE
+                    elif variance < 100:
+                        method_bonus = -0.3  # Moderate penalty
+                
+                # Check if TRACE has been consistently low quality
+                recent_trace_quality = [d['quality'] for d in self.detection_history[-5:] if d['method'] == 'trace']
+                if len(recent_trace_quality) >= 3:
+                    avg_trace_quality = np.mean(recent_trace_quality)
+                    if avg_trace_quality < 0.3:
+                        method_bonus -= 0.4  # Penalize consistently poor TRACE
+                        
         elif method == "rfdetr":
-            # RF-DETR is generally more reliable, give it a slight bonus
-            quality *= 1.1
+            # RF-DETR-specific bonuses
+            method_bonus = 0.2  # Base bonus for RF-DETR
+            
+            # Additional bonus if RF-DETR has been performing well recently
+            if len(self.detection_history) >= 3:
+                recent_rfdetr_quality = [d['quality'] for d in self.detection_history[-5:] if d['method'] == 'rfdetr']
+                if len(recent_rfdetr_quality) >= 2:
+                    avg_rfdetr_quality = np.mean(recent_rfdetr_quality)
+                    if avg_rfdetr_quality > 0.5:
+                        method_bonus += 0.2  # Bonus for consistently good RF-DETR
         
-        return min(1.0, max(0.0, quality))
+        # 3. Confidence-based adjustments
+        confidence_bonus = 0.0
+        if confidence > 0.8:
+            confidence_bonus = 0.2  # Bonus for high confidence
+        elif confidence < 0.4:
+            confidence_bonus = -0.3  # Penalty for low confidence
+        
+        # 4. Temporal consistency (check if this position makes sense given recent trajectory)
+        trajectory_bonus = 0.0
+        if len(self.detection_history) >= 2:
+            recent_detections = [d for d in self.detection_history[-3:] if d['x'] is not None and d['y'] is not None]
+            if len(recent_detections) >= 2:
+                # Calculate expected position based on recent movement
+                positions = [(d['x'], d['y']) for d in recent_detections]
+                if len(positions) >= 2:
+                    # Simple linear extrapolation
+                    dx = positions[-1][0] - positions[-2][0]
+                    dy = positions[-1][1] - positions[-2][1]
+                    expected_x = positions[-1][0] + dx
+                    expected_y = positions[-1][1] + dy
+                    
+                    # Check how close this detection is to expected position
+                    expected_distance = np.sqrt((x - expected_x)**2 + (y - expected_y)**2)
+                    if expected_distance < 30:
+                        trajectory_bonus = 0.3  # Bonus for following expected trajectory
+                    elif expected_distance > 100:
+                        trajectory_bonus = -0.2  # Penalty for deviating from expected trajectory
+        
+        # Combine all factors
+        final_quality = quality + method_bonus + confidence_bonus + trajectory_bonus - movement_penalty
+        
+        return min(1.0, max(0.0, final_quality))
 
-    def detect_ball_hybrid(self, frame: np.ndarray, csv_x: Optional[float] = None, 
-                          csv_y: Optional[float] = None, csv_conf: float = 0.0) -> Tuple[Optional[float], Optional[float], float, str]:
+    def detect_ball_hybrid(self, frame: np.ndarray) -> Tuple[Optional[float], Optional[float], float, str]:
         """
         Hybrid ball detection combining TRACE and RF-DETR
         Returns: (x, y, confidence, method_used)
@@ -349,44 +401,61 @@ class HybridBallDetector:
         # Get RF-DETR detection
         rfdetr_x, rfdetr_y, rfdetr_conf = self.get_rfdetr_ball_detection(frame)
         
-        # Use CSV data if provided (from our existing system)
-        if csv_x is not None and csv_y is not None:
-            our_x, our_y, our_conf = csv_x, csv_y, csv_conf
-        else:
-            our_x, our_y, our_conf = None, None, 0.0
-        
-        # Assess quality of all detections
+        # Assess quality of both detections
         trace_quality = self.assess_detection_quality(trace_x, trace_y, trace_conf, "trace")
         rfdetr_quality = self.assess_detection_quality(rfdetr_x, rfdetr_y, rfdetr_conf, "rfdetr")
-        our_quality = self.assess_detection_quality(our_x, our_y, our_conf, "our")
         
-        # Choose the best detection
+        # Choose the best detection with improved logic
         best_quality = 0.0
         chosen_x, chosen_y, chosen_conf = None, None, 0.0
         chosen_method = "none"
         
-        if trace_quality > best_quality and trace_x is not None:
-            chosen_x, chosen_y, chosen_conf = trace_x, trace_y, trace_conf
-            chosen_method = "trace"
-            best_quality = trace_quality
-        
-        if rfdetr_quality > best_quality and rfdetr_x is not None:
-            chosen_x, chosen_y, chosen_conf = rfdetr_x, rfdetr_y, rfdetr_conf
-            chosen_method = "rfdetr"
-            best_quality = rfdetr_quality
-        
-        if our_quality > best_quality and our_x is not None:
-            chosen_x, chosen_y, chosen_conf = our_x, our_y, our_conf
-            chosen_method = "our"
-            best_quality = our_quality
+        # If both models detect something, be more selective
+        if trace_x is not None and rfdetr_x is not None:
+            # Both models detected something - choose based on quality difference
+            quality_diff = abs(trace_quality - rfdetr_quality)
+            
+            if quality_diff > 0.3:  # Significant quality difference
+                # Choose the clearly better one
+                if trace_quality > rfdetr_quality:
+                    chosen_x, chosen_y, chosen_conf = trace_x, trace_y, trace_conf
+                    chosen_method = "trace"
+                    best_quality = trace_quality
+                else:
+                    chosen_x, chosen_y, chosen_conf = rfdetr_x, rfdetr_y, rfdetr_conf
+                    chosen_method = "rfdetr"
+                    best_quality = rfdetr_quality
+            else:
+                # Quality is similar - prefer RF-DETR as it's generally more reliable
+                if rfdetr_quality >= trace_quality * 0.8:  # RF-DETR is at least 80% as good
+                    chosen_x, chosen_y, chosen_conf = rfdetr_x, rfdetr_y, rfdetr_conf
+                    chosen_method = "rfdetr"
+                    best_quality = rfdetr_quality
+                elif trace_quality > rfdetr_quality * 1.2:  # TRACE is significantly better
+                    chosen_x, chosen_y, chosen_conf = trace_x, trace_y, trace_conf
+                    chosen_method = "trace"
+                    best_quality = trace_quality
+                else:
+                    # Still prefer RF-DETR if quality is close
+                    chosen_x, chosen_y, chosen_conf = rfdetr_x, rfdetr_y, rfdetr_conf
+                    chosen_method = "rfdetr"
+                    best_quality = rfdetr_quality
+        else:
+            # Only one model detected something - use it if quality is reasonable
+            if trace_x is not None and trace_quality > 0.3:
+                chosen_x, chosen_y, chosen_conf = trace_x, trace_y, trace_conf
+                chosen_method = "trace"
+                best_quality = trace_quality
+            elif rfdetr_x is not None and rfdetr_quality > 0.2:
+                chosen_x, chosen_y, chosen_conf = rfdetr_x, rfdetr_y, rfdetr_conf
+                chosen_method = "rfdetr"
+                best_quality = rfdetr_quality
         
         # Update quality scores for adaptive behavior
         if chosen_method == "trace":
             self.trace_quality_score = 0.7 * self.trace_quality_score + 0.3 * best_quality
         elif chosen_method == "rfdetr":
             self.rfdetr_quality_score = 0.7 * self.rfdetr_quality_score + 0.3 * best_quality
-        elif chosen_method == "our":
-            self.rfdetr_quality_score = 0.7 * self.rfdetr_quality_score + 0.3 * best_quality  # Treat CSV as RF-DETR
         
         # Store detection in history
         self.detection_history.append({
@@ -400,10 +469,7 @@ class HybridBallDetector:
             'trace_conf': trace_conf,
             'rfdetr_x': rfdetr_x,
             'rfdetr_y': rfdetr_y,
-            'rfdetr_conf': rfdetr_conf,
-            'our_x': our_x,
-            'our_y': our_y,
-            'our_conf': our_conf
+            'rfdetr_conf': rfdetr_conf
         })
         
         # Keep only recent history
@@ -450,6 +516,14 @@ class RFDETRBallDetector:
                     self.model.model.class_names = args.class_names
                 
                 self.args = args
+                
+                # Optimize model for inference
+                try:
+                    self.model.optimize_for_inference()
+                    logger.info("RF-DETR model optimized for inference")
+                except Exception as e:
+                    logger.warning(f"Could not optimize RF-DETR model for inference: {e}")
+                
                 logger.info("RF-DETR ball detector initialized successfully")
             else:
                 logger.error("Invalid RF-DETR checkpoint format")
@@ -505,16 +579,9 @@ class RFDETRBallDetector:
 class TennisBallProcessor:
     """Main processor for tennis ball detection"""
     
-    def __init__(self, video_path: str, csv_path: Optional[str] = None, output_path: str = "tennis_ball_detection.mp4"):
+    def __init__(self, video_path: str, output_path: str = "tennis_ball_detection.mp4"):
         self.video_path = video_path
-        self.csv_path = csv_path
         self.output_path = output_path
-        
-        # Load CSV data if provided
-        self.ball_df = None
-        if csv_path and os.path.exists(csv_path):
-            self.ball_df = pd.read_csv(csv_path)
-            logger.info(f"Loaded {len(self.ball_df)} rows from CSV")
         
         # Initialize video capture
         self.cap = cv2.VideoCapture(video_path)
@@ -538,19 +605,6 @@ class TennisBallProcessor:
         logger.info(f"Initialized TennisBallProcessor for {video_path}")
         logger.info(f"Video: {self.width}x{self.height} @ {self.fps}fps")
 
-    def get_our_ball_position(self, frame_idx: int) -> Tuple[Optional[float], Optional[float], float]:
-        """Get ball position from our existing CSV data"""
-        if self.ball_df is None or frame_idx >= len(self.ball_df):
-            return None, None, 0.0
-        
-        ball_x = self.ball_df.iloc[frame_idx]['ball_x']
-        ball_y = self.ball_df.iloc[frame_idx]['ball_y']
-        ball_confidence = self.ball_df.iloc[frame_idx]['ball_confidence']
-        
-        if pd.isna(ball_x) or pd.isna(ball_y) or ball_confidence < 0.2:
-            return None, None, 0.0
-        
-        return float(ball_x), float(ball_y), float(ball_confidence)
 
     def process_video(self):
         """Process entire video with hybrid ball detection"""
@@ -561,13 +615,8 @@ class TennisBallProcessor:
             if not ret:
                 break
             
-            # Get our system's detection from CSV (if available)
-            csv_x, csv_y, csv_conf = self.get_our_ball_position(frame_count)
-            
-            # Get hybrid detection
-            hybrid_x, hybrid_y, hybrid_conf, method = self.hybrid_detector.detect_ball_hybrid(
-                frame, csv_x, csv_y, csv_conf
-            )
+            # Get hybrid detection using only models
+            hybrid_x, hybrid_y, hybrid_conf, method = self.hybrid_detector.detect_ball_hybrid(frame)
             
             # Store results
             self.detection_results.append({
@@ -575,38 +624,20 @@ class TennisBallProcessor:
                 'x': hybrid_x,
                 'y': hybrid_y,
                 'confidence': hybrid_conf,
-                'method': method,
-                'csv_x': csv_x,
-                'csv_y': csv_y,
-                'csv_conf': csv_conf
+                'method': method
             })
             
             # Draw ball if detected
             if hybrid_x is not None and hybrid_y is not None:
-                # Color based on method and confidence
-                if method == "trace":
-                    if hybrid_conf > 0.7:
-                        color = (0, 255, 0)  # Green for good TRACE
-                    else:
-                        color = (0, 255, 255)  # Yellow for okay TRACE
-                elif method == "rfdetr":
-                    if hybrid_conf > 0.7:
-                        color = (255, 0, 0)  # Blue for good RF-DETR
-                    else:
-                        color = (255, 255, 0)  # Cyan for okay RF-DETR
-                elif method == "our":
-                    if hybrid_conf > 0.7:
-                        color = (128, 0, 128)  # Purple for CSV data
-                    else:
-                        color = (255, 0, 255)  # Magenta for okay CSV data
-                else:
-                    color = (0, 0, 255)  # Red for low confidence
+                # Use consistent yellow color for ball
+                ball_color = (0, 255, 255)  # Yellow for ball
+                text_color = (255, 255, 255)  # White for text
                 
                 # Draw ball
-                cv2.circle(frame, (int(hybrid_x), int(hybrid_y)), 8, color, -1)
+                cv2.circle(frame, (int(hybrid_x), int(hybrid_y)), 8, ball_color, -1)
                 cv2.putText(frame, f"{method.upper()}: {hybrid_conf:.2f}", 
                            (int(hybrid_x) + 10, int(hybrid_y) - 10),
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, text_color, 2)
             
             # Draw method comparison info
             cv2.putText(frame, f"TRACE Quality: {self.hybrid_detector.trace_quality_score:.2f}", 
@@ -642,14 +673,12 @@ class TennisBallProcessor:
         detections = [r for r in self.detection_results if r['x'] is not None]
         trace_detections = [r for r in detections if r['method'] == 'trace']
         rfdetr_detections = [r for r in detections if r['method'] == 'rfdetr']
-        our_detections = [r for r in detections if r['method'] == 'our']
         
         print(f"\n=== TENNIS BALL DETECTION SUMMARY ===")
         print(f"Total frames: {total_frames}")
         print(f"Total detections: {len(detections)} ({len(detections)/total_frames*100:.1f}%)")
         print(f"TRACE detections: {len(trace_detections)} ({len(trace_detections)/len(detections)*100:.1f}%)")
         print(f"RF-DETR detections: {len(rfdetr_detections)} ({len(rfdetr_detections)/len(detections)*100:.1f}%)")
-        print(f"CSV detections: {len(our_detections)} ({len(our_detections)/len(detections)*100:.1f}%)")
         print(f"Final TRACE quality score: {self.hybrid_detector.trace_quality_score:.3f}")
         print(f"Final RF-DETR quality score: {self.hybrid_detector.rfdetr_quality_score:.3f}")
 
@@ -657,7 +686,6 @@ def main():
     """Main function to run tennis ball detection"""
     parser = argparse.ArgumentParser(description="Tennis Ball Detection using hybrid approach")
     parser.add_argument("--video", required=True, help="Input video path")
-    parser.add_argument("--csv", help="Input CSV path (optional)")
     parser.add_argument("--output", default="tennis_ball_detection.mp4", help="Output video path")
     parser.add_argument("--results-csv", default="tennis_ball_results.csv", help="Output CSV path")
     
@@ -665,7 +693,7 @@ def main():
     
     try:
         # Initialize processor
-        processor = TennisBallProcessor(args.video, args.csv, args.output)
+        processor = TennisBallProcessor(args.video, args.output)
         
         # Process video
         results = processor.process_video()
