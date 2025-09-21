@@ -35,6 +35,8 @@ class ShotType(Enum):
     """Enumeration of shot types"""
     FOREHAND = "forehand"
     BACKHAND = "backhand"
+    OVERHEAD_SMASH = "overhead_smash"
+    SERVE = "serve"
     READY_STANCE = "ready_stance"
     MOVING = "moving"
     UNKNOWN = "unknown"
@@ -71,16 +73,22 @@ class ShotClassifier:
     def __init__(self):
         self.name = "ML-Based Shot Classifier"
         
-        # ML-based parameters (learned from data analysis)
-        self.ball_proximity_threshold = 250.0
-        self.ball_distance_threshold = 350.0
-        self.arm_extension_threshold = 15.0  # Lowered based on ML data
+        # ML-based parameters (learned from data analysis) - now relative to player size
+        self.ball_proximity_ratio = 0.8  # Ball within 80% of player width
+        self.ball_distance_ratio = 1.2   # Ball within 120% of player width
+        self.arm_extension_ratio = 0.15  # Arm extension at least 15% of player width
         self.min_confidence = 0.5
         
-        # ML-based decision thresholds
-        self.near_player_forehand_wrist_x_threshold = 0.0  # Positive = forehand
-        self.near_player_backhand_wrist_x_threshold = -10.0  # Negative = backhand
+        # ML-based decision thresholds - now relative to player size
+        self.near_player_forehand_wrist_ratio = 0.0  # Positive = forehand (relative to player width)
+        self.near_player_backhand_wrist_ratio = -0.1  # Negative = backhand (10% of player width)
         self.far_player_arm_angle_threshold = 45.0  # Different angle patterns
+        
+        # Overhead/serve detection ratios
+        self.overhead_wrist_y_ratio = -0.3  # Wrist 30% above body center
+        self.overhead_arm_extension_ratio = 0.25  # Arm extension 25% of player width
+        self.serve_wrist_y_ratio = -0.2  # Wrist 20% above body center
+        self.serve_arm_extension_ratio = 0.2  # Arm extension 20% of player width
         
         # Shot persistence
         self.shot_identification_frames = 30
@@ -91,7 +99,10 @@ class ShotClassifier:
         self.proximity_smoothing_frames = 5
         self.max_proximity_gap = 3
         
-        logger.info(f"ML-based shot classifier initialized with arm extension threshold: {self.arm_extension_threshold}px")
+        logger.info(f"ML-based shot classifier initialized with relative measurements:")
+        logger.info(f"  - Ball proximity: {self.ball_proximity_ratio:.1f} player widths")
+        logger.info(f"  - Ball distance: {self.ball_distance_ratio:.1f} player widths") 
+        logger.info(f"  - Arm extension: {self.arm_extension_ratio:.1f} player widths")
     
     def classify_shot(self, player_data: PlayerData, frame_data: FrameData) -> Tuple[ShotType, float]:
         """Classify shot using ML-based insights"""
@@ -101,12 +112,17 @@ class ShotClassifier:
         # Check if we're continuing a current shot
         if player_id in self.current_shot_state:
             shot_type, frames_remaining = self.current_shot_state[player_id]
-            if ball_distance <= self.ball_distance_threshold and frames_remaining > 0:
+            player_width = self._get_player_width(player_data)
+            ball_distance_ratio = ball_distance / player_width if player_width > 0 else float('inf')
+            if ball_distance_ratio <= self.ball_distance_ratio and frames_remaining > 0:
                 self.current_shot_state[player_id] = (shot_type, frames_remaining - 1)
                 return shot_type, 0.9  # High confidence for continuing shots
         
-        # Check ball proximity
-        ball_is_near = ball_distance <= self.ball_proximity_threshold
+        # Check ball proximity using relative distance
+        player_width = self._get_player_width(player_data)
+        ball_distance_ratio = ball_distance / player_width if player_width > 0 else float('inf')
+        
+        ball_is_near = ball_distance_ratio <= self.ball_proximity_ratio
         
         if not ball_is_near:
             # Ball is far - clear any current shot
@@ -121,7 +137,7 @@ class ShotClassifier:
             # Start tracking this shot
             self.current_shot_state[player_id] = (shot_type, self.shot_identification_frames)
             logger.info(f"Frame {frame_data.frame_number}, Player {player_id}: Started {shot_type.value} "
-                       f"(ball distance: {ball_distance:.1f}px, confidence: {confidence:.2f})")
+                       f"(ball distance: {ball_distance_ratio:.2f} player widths, confidence: {confidence:.2f})")
         
         return shot_type, confidence
     
@@ -131,6 +147,12 @@ class ShotClassifier:
             if p == player_data:
                 return i
         return 0  # Fallback
+    
+    def _get_player_width(self, player_data: PlayerData) -> float:
+        """Get player width from bounding box"""
+        if not player_data.bbox or len(player_data.bbox) < 4:
+            return 100.0  # Fallback width
+        return float(player_data.bbox[2] - player_data.bbox[0])  # x2 - x1
     
     def _detect_shot_ml_based(self, player_data: PlayerData, player_id: int) -> Tuple[ShotType, float]:
         """Detect shot using ML-based features"""
@@ -182,15 +204,25 @@ class ShotClassifier:
                 features['body_center_x'] = player_data.center[0]
                 features['body_center_y'] = player_data.center[1]
             
-            # Wrist position relative to body
-            features['wrist_relative_x'] = keypoints['right_wrist'][0] - features['body_center_x']
-            features['wrist_relative_y'] = keypoints['right_wrist'][1] - features['body_center_y']
+            # Get player width for relative measurements
+            player_width = self._get_player_width(player_data)
             
-            # Arm extension
-            features['arm_extension'] = np.sqrt(
+            # Wrist position relative to body (in pixels)
+            wrist_relative_x_px = keypoints['right_wrist'][0] - features['body_center_x']
+            wrist_relative_y_px = keypoints['right_wrist'][1] - features['body_center_y']
+            
+            # Convert to relative measurements (as ratio of player width)
+            features['wrist_relative_x'] = wrist_relative_x_px / player_width if player_width > 0 else 0
+            features['wrist_relative_y'] = wrist_relative_y_px / player_width if player_width > 0 else 0
+            
+            # Arm extension (in pixels)
+            arm_extension_px = np.sqrt(
                 (keypoints['right_wrist'][0] - keypoints['right_elbow'][0])**2 +
                 (keypoints['right_wrist'][1] - keypoints['right_elbow'][1])**2
             )
+            
+            # Convert to relative measurement
+            features['arm_extension'] = arm_extension_px / player_width if player_width > 0 else 0
             
             # Arm angle
             dx = keypoints['right_wrist'][0] - keypoints['right_elbow'][0]
@@ -212,16 +244,32 @@ class ShotClassifier:
         # Near player: wrist X position is the key differentiator
         wrist_x = features['wrist_relative_x']
         arm_extension = features['arm_extension']
+        wrist_y = features['wrist_relative_y']
+        arm_angle = features['arm_angle']
         
-        if arm_extension < self.arm_extension_threshold:
+        if arm_extension < self.arm_extension_ratio:
             return ShotType.UNKNOWN, 0.3
         
+        # Check for overhead smash (wrist high above body, arm extended upward)
+        if (wrist_y < self.overhead_wrist_y_ratio and 
+            arm_extension > self.overhead_arm_extension_ratio and 
+            (arm_angle > 60 or arm_angle < -60)):
+            confidence = min(0.9, 0.7 + (arm_extension / 0.4))  # Scale by ratio
+            return ShotType.OVERHEAD_SMASH, confidence
+        
+        # Check for serve (wrist high, arm extended, specific angle range)
+        if (wrist_y < self.serve_wrist_y_ratio and 
+            arm_extension > self.serve_arm_extension_ratio and 
+            (arm_angle > 45 or arm_angle < -45)):
+            confidence = min(0.9, 0.6 + (arm_extension / 0.35))  # Scale by ratio
+            return ShotType.SERVE, confidence
+        
         # ML insight: Near player forehand has positive wrist X, backhand has negative
-        if wrist_x > self.near_player_forehand_wrist_x_threshold:
-            confidence = min(0.9, 0.6 + (wrist_x / 20.0))  # Scale confidence
+        if wrist_x > self.near_player_forehand_wrist_ratio:
+            confidence = min(0.9, 0.6 + (wrist_x / 0.2))  # Scale confidence by ratio
             return ShotType.FOREHAND, confidence
-        elif wrist_x < self.near_player_backhand_wrist_x_threshold:
-            confidence = min(0.9, 0.6 + (abs(wrist_x) / 20.0))
+        elif wrist_x < self.near_player_backhand_wrist_ratio:
+            confidence = min(0.9, 0.6 + (abs(wrist_x) / 0.2))
             return ShotType.BACKHAND, confidence
         else:
             return ShotType.UNKNOWN, 0.4
@@ -232,17 +280,32 @@ class ShotClassifier:
         arm_extension = features['arm_extension']
         arm_angle = features['arm_angle']
         feet_x = features['feet_x']
+        wrist_y = features['wrist_relative_y']
         
-        if arm_extension < self.arm_extension_threshold:
+        if arm_extension < self.arm_extension_ratio:
             return ShotType.UNKNOWN, 0.3
+        
+        # Check for overhead smash (wrist high above body, arm extended upward)
+        if (wrist_y < self.overhead_wrist_y_ratio and 
+            arm_extension > self.overhead_arm_extension_ratio and 
+            (arm_angle > 50 or arm_angle < -50)):
+            confidence = min(0.9, 0.7 + (arm_extension / 0.35))  # Scale by ratio
+            return ShotType.OVERHEAD_SMASH, confidence
+        
+        # Check for serve (wrist high, arm extended, specific angle range)
+        if (wrist_y < self.serve_wrist_y_ratio and 
+            arm_extension > self.serve_arm_extension_ratio and 
+            (arm_angle > 40 or arm_angle < -40)):
+            confidence = min(0.9, 0.6 + (arm_extension / 0.3))  # Scale by ratio
+            return ShotType.SERVE, confidence
         
         # ML insight: Far player needs different approach
         # Use arm angle and position patterns
         if arm_angle > 45 and arm_angle < 135:  # Arm pointing right
-            confidence = min(0.9, 0.6 + (arm_extension / 30.0))
+            confidence = min(0.9, 0.6 + (arm_extension / 0.3))  # Scale by ratio
             return ShotType.FOREHAND, confidence
         elif arm_angle < -45 and arm_angle > -135:  # Arm pointing left
-            confidence = min(0.9, 0.6 + (arm_extension / 30.0))
+            confidence = min(0.9, 0.6 + (arm_extension / 0.3))  # Scale by ratio
             return ShotType.BACKHAND, confidence
         else:
             # Fallback to position-based classification
@@ -581,6 +644,10 @@ class TennisShotProcessor:
                         text_color = (0, 255, 0)  # Green for forehand
                     elif player.shot_type == ShotType.BACKHAND:
                         text_color = (0, 0, 255)  # Red for backhand
+                    elif player.shot_type == ShotType.OVERHEAD_SMASH:
+                        text_color = (255, 0, 255)  # Magenta for overhead smash
+                    elif player.shot_type == ShotType.SERVE:
+                        text_color = (255, 165, 0)  # Orange for serve
                     else:
                         text_color = (255, 255, 255)  # White for other shots
                     cv2.putText(frame, shot_text, (x1, y1 - 10), 
