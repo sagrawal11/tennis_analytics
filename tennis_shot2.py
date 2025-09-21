@@ -66,107 +66,64 @@ class FrameData:
 
 
 class ShotClassifier:
-    """Classifier for forehand/backhand detection using right arm keypoints"""
+    """ML-based classifier for forehand/backhand detection using learned patterns"""
     
     def __init__(self):
-        self.name = "Shot Classifier"
+        self.name = "ML-Based Shot Classifier"
         
-        # Shot detection parameters
-        self.shot_history_length = 10  # Frames to track for shot analysis
-        self.min_confidence = 0.5      # Minimum confidence for keypoints (lowered for far players)
-        self.arm_extension_threshold = 25.0  # Pixels of arm extension from body center (further lowered)
+        # ML-based parameters (learned from data analysis)
+        self.ball_proximity_threshold = 250.0
+        self.ball_distance_threshold = 350.0
+        self.arm_extension_threshold = 15.0  # Lowered based on ML data
+        self.min_confidence = 0.5
         
-        # Motion-based detection parameters
-        self.motion_velocity_threshold = 8.0  # Minimum velocity for motion-based detection
-        self.motion_history_length = 8        # Frames to track for motion analysis
-        self.motion_confidence_weight = 0.3   # Weight for motion-based confidence
-        self.keypoint_confidence_weight = 0.7 # Weight for keypoint-based confidence
+        # ML-based decision thresholds
+        self.near_player_forehand_wrist_x_threshold = 0.0  # Positive = forehand
+        self.near_player_backhand_wrist_x_threshold = -10.0  # Negative = backhand
+        self.far_player_arm_angle_threshold = 45.0  # Different angle patterns
         
-        # Player shot history: {player_id: deque of (right_elbow, right_wrist, body_center)}
-        self.shot_history = {}
-        
-        # Ball proximity for shot detection (increased for longer detection)
-        self.ball_proximity_threshold = 250.0  # Pixels - ball must be within this distance (increased from 150)
-        self.ball_distance_threshold = 350.0   # Pixels - shot ends when ball moves this far away (increased from 200)
+        # Shot persistence
+        self.shot_identification_frames = 30
         self.current_shot_state = {}  # {player_id: (shot_type, frames_remaining)}
-        self.shot_identification_frames = 30   # Frames to maintain shot classification
         
-        # Temporal smoothing for ball proximity
-        self.ball_proximity_history = {}  # {player_id: deque of (ball_distance, frame_number)}
-        self.proximity_smoothing_frames = 5  # Frames to maintain proximity even if ball detection fails
-        self.max_proximity_gap = 3  # Max frames of missing ball detection before giving up
+        # Ball proximity smoothing
+        self.ball_proximity_history = {}
+        self.proximity_smoothing_frames = 5
+        self.max_proximity_gap = 3
         
-        logger.info(f"Shot classifier initialized with arm extension threshold: {self.arm_extension_threshold}px")
+        logger.info(f"ML-based shot classifier initialized with arm extension threshold: {self.arm_extension_threshold}px")
     
     def classify_shot(self, player_data: PlayerData, frame_data: FrameData) -> Tuple[ShotType, float]:
-        """
-        Simple shot classification: Ball near = look for shots, Ball far = look for movement
-        
-        Args:
-            player_data: Player-specific data with pose keypoints
-            frame_data: Complete frame data
-            
-        Returns:
-            Tuple of (shot_type, confidence)
-        """
+        """Classify shot using ML-based insights"""
         player_id = self._get_player_id(player_data, frame_data)
-        
-        # Initialize shot history for new players
-        if player_id not in self.shot_history:
-            self.shot_history[player_id] = deque(maxlen=self.shot_history_length)
-        
-        # Get ball distance to player
         ball_distance = self._get_ball_distance_to_player(player_data, frame_data)
         
-        # Get smoothed ball proximity to reduce flickering
-        ball_is_near = self._get_smoothed_ball_proximity(player_id, ball_distance, frame_data.frame_number)
-        
-        # Check if we're currently maintaining a shot classification
+        # Check if we're continuing a current shot
         if player_id in self.current_shot_state:
-            current_shot_type, frames_remaining = self.current_shot_state[player_id]
-            frames_remaining -= 1
-            
-            # Check if shot should end (ball moved far away OR frames expired)
-            if ball_distance > self.ball_distance_threshold or frames_remaining <= 0:
-                # Shot completed - clear current shot state
-                del self.current_shot_state[player_id]
-                logger.info(f"Frame {frame_data.frame_number}, Player {player_id}: Shot {current_shot_type.value} completed (ball distance: {ball_distance:.1f}px)")
-                return ShotType.UNKNOWN, 0.0
-            else:
-                # Continue current shot - ZERO FLICKERING
-                self.current_shot_state[player_id] = (current_shot_type, frames_remaining)
-                logger.debug(f"Frame {frame_data.frame_number}, Player {player_id}: Continuing {current_shot_type.value} ({frames_remaining} frames left)")
-                return current_shot_type, 0.9  # High confidence for continuing shots
+            shot_type, frames_remaining = self.current_shot_state[player_id]
+            if ball_distance <= self.ball_distance_threshold and frames_remaining > 0:
+                self.current_shot_state[player_id] = (shot_type, frames_remaining - 1)
+                return shot_type, 0.9  # High confidence for continuing shots
         
-        # Not currently in a shot - determine what to look for based on smoothed ball proximity
-        if ball_is_near:
-            # Ball is close - look for FOREHAND/BACKHAND
-            right_elbow, right_wrist, body_center = self._get_right_arm_positions(player_data.pose_keypoints)
-            if right_elbow is None or right_wrist is None or body_center is None:
-                return ShotType.UNKNOWN, 0.0
-            
-            # Add to history
-            self.shot_history[player_id].append((right_elbow, right_wrist, body_center))
-            
-            # Need minimum frames for analysis
-            if len(self.shot_history[player_id]) < 3:
-                return ShotType.UNKNOWN, 0.0
-            
-            # Analyze recent arm positions for new shot
-            shot_type, confidence = self._analyze_arm_positions(player_id)
-            
-            # If we detected a valid shot, start tracking it for 30 frames
-            if shot_type != ShotType.UNKNOWN and confidence > 0.6:
-                self.current_shot_state[player_id] = (shot_type, self.shot_identification_frames)
-                logger.info(f"Frame {frame_data.frame_number}, Player {player_id}: Started {shot_type.value} (ball distance: {ball_distance:.1f}px, smoothed: {ball_is_near}, confidence: {confidence:.2f})")
-                return shot_type, confidence
-            
-            # No shot detected yet - return unknown (will be handled by movement classifier)
+        # Check ball proximity
+        ball_is_near = ball_distance <= self.ball_proximity_threshold
+        
+        if not ball_is_near:
+            # Ball is far - clear any current shot
+            if player_id in self.current_shot_state:
+                del self.current_shot_state[player_id]
             return ShotType.UNKNOWN, 0.0
-        else:
-            # Ball is far - no shot possible, return unknown (will be handled by movement classifier)
-            logger.debug(f"Frame {frame_data.frame_number}, Player {player_id}: Ball far (distance: {ball_distance:.1f}px, smoothed: {ball_is_near})")
-            return ShotType.UNKNOWN, 0.0
+        
+        # Ball is near - try to detect shot
+        shot_type, confidence = self._detect_shot_ml_based(player_data, player_id)
+        
+        if shot_type != ShotType.UNKNOWN and confidence > 0.6:
+            # Start tracking this shot
+            self.current_shot_state[player_id] = (shot_type, self.shot_identification_frames)
+            logger.info(f"Frame {frame_data.frame_number}, Player {player_id}: Started {shot_type.value} "
+                       f"(ball distance: {ball_distance:.1f}px, confidence: {confidence:.2f})")
+        
+        return shot_type, confidence
     
     def _get_player_id(self, player_data: PlayerData, frame_data: FrameData) -> int:
         """Get player ID based on position in frame"""
@@ -175,34 +132,124 @@ class ShotClassifier:
                 return i
         return 0  # Fallback
     
-    def _get_right_arm_positions(self, pose_keypoints: Optional[List[Tuple[float, float, float]]]) -> Tuple[Optional[Tuple[float, float]], Optional[Tuple[float, float]], Optional[Tuple[float, float]]]:
-        """Get right elbow (8), right wrist (10), and body center positions"""
-        if not pose_keypoints or len(pose_keypoints) < 11:
-            logger.debug(f"Invalid pose keypoints: {len(pose_keypoints) if pose_keypoints else 0} points")
-            return None, None, None
-        
+    def _detect_shot_ml_based(self, player_data: PlayerData, player_id: int) -> Tuple[ShotType, float]:
+        """Detect shot using ML-based features"""
         try:
-            # Keypoints: right_elbow=8, right_wrist=10, shoulders=5,6
-            right_elbow = pose_keypoints[8]    # Index 8
-            right_wrist = pose_keypoints[10]   # Index 10
-            left_shoulder = pose_keypoints[5]  # Index 5
-            right_shoulder = pose_keypoints[6] # Index 6
+            # Extract key features
+            features = self._extract_ml_features(player_data)
             
-            # Filter by confidence
-            if (right_elbow[2] < self.min_confidence or 
-                right_wrist[2] < self.min_confidence or 
-                left_shoulder[2] < self.min_confidence or 
-                right_shoulder[2] < self.min_confidence):
-                logger.debug(f"Low confidence keypoints: elbow={right_elbow[2]:.2f}, wrist={right_wrist[2]:.2f}, shoulders={left_shoulder[2]:.2f},{right_shoulder[2]:.2f}")
-                return None, None, None
+            if not features:
+                return ShotType.UNKNOWN, 0.0
             
-            # Calculate body center (midpoint between shoulders)
-            body_center = ((left_shoulder[0] + right_shoulder[0]) / 2, (left_shoulder[1] + right_shoulder[1]) / 2)
+            # Use ML-based decision tree
+            if player_id == 0:  # Near player
+                return self._classify_near_player_shot(features)
+            else:  # Far player
+                return self._classify_far_player_shot(features)
+                
+        except Exception as e:
+            logger.warning(f"Error in ML-based shot detection: {e}")
+            return ShotType.UNKNOWN, 0.0
+    
+    def _extract_ml_features(self, player_data: PlayerData) -> Optional[Dict]:
+        """Extract ML features from player data"""
+        try:
+            if not player_data.pose_keypoints or len(player_data.pose_keypoints) < 17:
+                return None
+                
+            # Key points: 5=left_shoulder, 6=right_shoulder, 8=right_elbow, 10=right_wrist
+            keypoints = {
+                'left_shoulder': player_data.pose_keypoints[5] if len(player_data.pose_keypoints) > 5 else [0, 0, 0],
+                'right_shoulder': player_data.pose_keypoints[6] if len(player_data.pose_keypoints) > 6 else [0, 0, 0],
+                'right_elbow': player_data.pose_keypoints[8] if len(player_data.pose_keypoints) > 8 else [0, 0, 0],
+                'right_wrist': player_data.pose_keypoints[10] if len(player_data.pose_keypoints) > 10 else [0, 0, 0],
+            }
             
-            return (right_elbow[0], right_elbow[1]), (right_wrist[0], right_wrist[1]), body_center
-        except (IndexError, TypeError) as e:
-            logger.debug(f"Error parsing keypoints: {e}")
-            return None, None, None
+            # Check confidence
+            if (keypoints['right_elbow'][2] < self.min_confidence or 
+                keypoints['right_wrist'][2] < self.min_confidence):
+                return None
+            
+            # Calculate features
+            features = {}
+            
+            # Body center
+            if (keypoints['left_shoulder'][2] > 0.5 and keypoints['right_shoulder'][2] > 0.5):
+                features['body_center_x'] = (keypoints['left_shoulder'][0] + keypoints['right_shoulder'][0]) / 2
+                features['body_center_y'] = (keypoints['left_shoulder'][1] + keypoints['right_shoulder'][1]) / 2
+            else:
+                # Use bbox center as fallback
+                features['body_center_x'] = player_data.center[0]
+                features['body_center_y'] = player_data.center[1]
+            
+            # Wrist position relative to body
+            features['wrist_relative_x'] = keypoints['right_wrist'][0] - features['body_center_x']
+            features['wrist_relative_y'] = keypoints['right_wrist'][1] - features['body_center_y']
+            
+            # Arm extension
+            features['arm_extension'] = np.sqrt(
+                (keypoints['right_wrist'][0] - keypoints['right_elbow'][0])**2 +
+                (keypoints['right_wrist'][1] - keypoints['right_elbow'][1])**2
+            )
+            
+            # Arm angle
+            dx = keypoints['right_wrist'][0] - keypoints['right_elbow'][0]
+            dy = keypoints['right_wrist'][1] - keypoints['right_elbow'][1]
+            features['arm_angle'] = np.arctan2(dy, dx) * 180 / np.pi
+            
+            # Player position (feet)
+            features['feet_x'] = player_data.feet_position[0]
+            features['feet_y'] = player_data.feet_position[1]
+            
+            return features
+            
+        except Exception as e:
+            logger.warning(f"Error extracting ML features: {e}")
+            return None
+    
+    def _classify_near_player_shot(self, features: Dict) -> Tuple[ShotType, float]:
+        """Classify near player shot using ML insights"""
+        # Near player: wrist X position is the key differentiator
+        wrist_x = features['wrist_relative_x']
+        arm_extension = features['arm_extension']
+        
+        if arm_extension < self.arm_extension_threshold:
+            return ShotType.UNKNOWN, 0.3
+        
+        # ML insight: Near player forehand has positive wrist X, backhand has negative
+        if wrist_x > self.near_player_forehand_wrist_x_threshold:
+            confidence = min(0.9, 0.6 + (wrist_x / 20.0))  # Scale confidence
+            return ShotType.FOREHAND, confidence
+        elif wrist_x < self.near_player_backhand_wrist_x_threshold:
+            confidence = min(0.9, 0.6 + (abs(wrist_x) / 20.0))
+            return ShotType.BACKHAND, confidence
+        else:
+            return ShotType.UNKNOWN, 0.4
+    
+    def _classify_far_player_shot(self, features: Dict) -> Tuple[ShotType, float]:
+        """Classify far player shot using ML insights"""
+        # Far player: wrist X position is not reliable, use other features
+        arm_extension = features['arm_extension']
+        arm_angle = features['arm_angle']
+        feet_x = features['feet_x']
+        
+        if arm_extension < self.arm_extension_threshold:
+            return ShotType.UNKNOWN, 0.3
+        
+        # ML insight: Far player needs different approach
+        # Use arm angle and position patterns
+        if arm_angle > 45 and arm_angle < 135:  # Arm pointing right
+            confidence = min(0.9, 0.6 + (arm_extension / 30.0))
+            return ShotType.FOREHAND, confidence
+        elif arm_angle < -45 and arm_angle > -135:  # Arm pointing left
+            confidence = min(0.9, 0.6 + (arm_extension / 30.0))
+            return ShotType.BACKHAND, confidence
+        else:
+            # Fallback to position-based classification
+            if feet_x > 1000:  # Right side of court
+                return ShotType.FOREHAND, 0.6
+            else:  # Left side of court
+                return ShotType.BACKHAND, 0.6
     
     def _get_ball_distance_to_player(self, player_data: PlayerData, frame_data: FrameData) -> float:
         """Calculate distance between ball and player center"""
@@ -215,129 +262,6 @@ class ShotClassifier:
         distance = np.sqrt((ball_x - player_center[0])**2 + (ball_y - player_center[1])**2)
         return distance
     
-    def _get_smoothed_ball_proximity(self, player_id: int, current_distance: float, frame_number: int) -> bool:
-        """
-        Get smoothed ball proximity using temporal history to reduce flickering
-        when ball detection temporarily fails
-        """
-        # Initialize history for new players
-        if player_id not in self.ball_proximity_history:
-            self.ball_proximity_history[player_id] = deque(maxlen=self.proximity_smoothing_frames)
-        
-        # Add current distance to history
-        self.ball_proximity_history[player_id].append((current_distance, frame_number))
-        
-        # If we have recent proximity data, use it
-        if len(self.ball_proximity_history[player_id]) > 0:
-            recent_distances = [dist for dist, frame in self.ball_proximity_history[player_id] 
-                              if frame_number - frame <= self.max_proximity_gap]
-            
-            if recent_distances:
-                # Use the most recent valid distance
-                most_recent_distance = recent_distances[-1]
-                return most_recent_distance <= self.ball_proximity_threshold
-        
-        # Fallback to current distance
-        return current_distance <= self.ball_proximity_threshold
-    
-    def _detect_motion_based_shot(self, player_id: int) -> Tuple[ShotType, float]:
-        """
-        Detect shot type based on arm motion patterns
-        """
-        if player_id not in self.shot_history or len(self.shot_history[player_id]) < self.motion_history_length:
-            return ShotType.UNKNOWN, 0.0
-        
-        history = list(self.shot_history[player_id])
-        
-        # Calculate velocities for right wrist
-        velocities = []
-        for i in range(1, len(history)):
-            prev_wrist = history[i-1][1]  # right_wrist
-            curr_wrist = history[i][1]    # right_wrist
-            
-            velocity = np.sqrt((curr_wrist[0] - prev_wrist[0])**2 + (curr_wrist[1] - prev_wrist[1])**2)
-            velocities.append(velocity)
-        
-        # Check if there's significant motion
-        if not velocities or max(velocities) < self.motion_velocity_threshold:
-            return ShotType.UNKNOWN, 0.0
-        
-        # Analyze motion direction patterns
-        right_motion_count = 0
-        left_motion_count = 0
-        
-        for i in range(1, len(history)):
-            prev_wrist, prev_body = history[i-1][1], history[i-1][2]
-            curr_wrist, curr_body = history[i][1], history[i][2]
-            
-            # Calculate relative motion direction
-            prev_relative_x = prev_wrist[0] - prev_body[0]
-            curr_relative_x = curr_wrist[0] - curr_body[0]
-            
-            motion_direction = curr_relative_x - prev_relative_x
-            
-            if motion_direction > 0:
-                right_motion_count += 1
-            elif motion_direction < 0:
-                left_motion_count += 1
-        
-        # Determine shot type based on motion patterns
-        total_motions = right_motion_count + left_motion_count
-        if total_motions < 3:  # Need minimum motion frames
-            return ShotType.UNKNOWN, 0.0
-        
-        right_ratio = right_motion_count / total_motions
-        left_ratio = left_motion_count / total_motions
-        
-        # Motion-based confidence
-        motion_confidence = min(0.8, max(velocities) / 20.0)  # Scale based on max velocity
-        
-        if right_ratio > 0.6:
-            return ShotType.FOREHAND, motion_confidence
-        elif left_ratio > 0.6:
-            return ShotType.BACKHAND, motion_confidence
-        else:
-            return ShotType.UNKNOWN, 0.0
-    
-    def _analyze_arm_positions(self, player_id: int) -> Tuple[ShotType, float]:
-        """Analyze recent arm positions to determine shot type"""
-        history = list(self.shot_history[player_id])
-        
-        # Analyze the last few frames for consistent pattern
-        right_side_count = 0
-        left_side_count = 0
-        extended_count = 0
-        
-        for right_elbow, right_wrist, body_center in history[-5:]:  # Last 5 frames
-            # Check if arm is extended (wrist far from body center)
-            wrist_distance = np.sqrt((right_wrist[0] - body_center[0])**2 + (right_wrist[1] - body_center[1])**2)
-            if wrist_distance > self.arm_extension_threshold:
-                extended_count += 1
-                
-                # Check which side of body the wrist is on
-                if right_wrist[0] > body_center[0]:  # Wrist right of body center
-                    right_side_count += 1
-                else:  # Wrist left of body center (crossed over)
-                    left_side_count += 1
-        
-        # Log detailed analysis
-        if len(history) >= 5:  # Only log when we have enough history
-            logger.info(f"  Arm analysis: extended={extended_count}/5, right_side={right_side_count}, left_side={left_side_count}")
-            logger.info(f"  Wrist distances: {[np.sqrt((h[1][0] - h[2][0])**2 + (h[1][1] - h[2][1])**2) for h in history[-5:]]}")
-        
-        # Determine shot type based on dominant pattern
-        if extended_count >= 2:  # Arm extended in at least 2 of last 5 frames (lowered from 3)
-            if right_side_count > left_side_count:
-                # Wrist mostly on right side = FOREHAND
-                confidence = min(0.9, 0.6 + (right_side_count - left_side_count) / 5.0)
-                return ShotType.FOREHAND, confidence
-            elif left_side_count > right_side_count:
-                # Wrist mostly on left side = BACKHAND (crossed over body)
-                confidence = min(0.9, 0.6 + (left_side_count - right_side_count) / 5.0)
-                return ShotType.BACKHAND, confidence
-        
-        # Arm not sufficiently extended or mixed pattern
-        return ShotType.UNKNOWN, 0.3
     
 
 
@@ -625,8 +549,11 @@ class TennisShotProcessor:
         frame = frame.copy()
         
         # Add frame info
+        # Draw frame info with larger, more visible counter
         cv2.putText(frame, f"Frame: {frame_data.frame_number}", (10, 30), 
-                   cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+                   cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 0), 4)  # Black text with thick outline
+        cv2.putText(frame, f"Frame: {frame_data.frame_number}", (10, 30), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 255, 255), 2)  # White text
         cv2.putText(frame, f"Movement: {self.movement_classifier.name}", (10, 70), 
                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
         cv2.putText(frame, f"Shot: {self.shot_classifier.name}", (10, 100), 
