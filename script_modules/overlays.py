@@ -124,23 +124,39 @@ class OverlayRenderer:
                 else:
                     keypoints.append(None)
             
-            # Draw court zones based on tennis court layout
-            zones_drawn = 0
+            # Draw the 4 main court regions with proper subdivisions
             
-            # Service boxes - use keypoints 4,5,6,7 (service box corners)
-            if all(keypoints[i] for i in [4, 5, 6, 7]):
-                self._draw_service_box_zones(frame, keypoints[4], keypoints[5], keypoints[6], keypoints[7])
-                zones_drawn += 4
+            # 1. Near Side (Baseline to Service Line) - Bounded by 5, 7, 10, 11
+            if all(keypoints[i] for i in [5, 7, 10, 11]):
+                self._draw_near_side_zones(frame, keypoints[5], keypoints[7], keypoints[10], keypoints[11])
             
-            # Baseline zones - use keypoints 8,9,10,11 (baseline corners)  
-            if all(keypoints[i] for i in [8, 9, 10, 11]):
-                self._draw_baseline_zones(frame, keypoints[8], keypoints[9], keypoints[10], keypoints[11])
-                zones_drawn += 3
+            # 2. Left Service Box - Bounded by 10, 13, 8, 12
+            if all(keypoints[i] for i in [10, 13, 8, 12]):
+                self._draw_left_service_box_zones(frame, keypoints[10], keypoints[13], keypoints[8], keypoints[12])
             
-            # Doubles lanes - use keypoints 2,3 (doubles lane corners)
-            if all(keypoints[i] for i in [2, 3]):
-                self._draw_doubles_lanes(frame, keypoints[2], keypoints[3])
-                zones_drawn += 2
+            # 3. Right Service Box - Bounded by 13, 11, 9, 12
+            if all(keypoints[i] for i in [13, 11, 9, 12]):
+                self._draw_right_service_box_zones(frame, keypoints[13], keypoints[11], keypoints[9], keypoints[12])
+            
+            # 4. Far Side (Service Line to Baseline) - Bounded by 4, 8, 6, 9
+            if all(keypoints[i] for i in [4, 8, 6, 9]):
+                self._draw_far_side_zones(frame, keypoints[4], keypoints[8], keypoints[6], keypoints[9])
+            
+            # 5. Near Side Left Doubles Alley (AA) - Bounded by 2, 5, 10, and left doubles alley
+            if all(keypoints[i] for i in [2, 5, 10]):
+                self._draw_near_left_doubles_alley(frame, keypoints[2], keypoints[5], keypoints[10])
+            
+            # 6. Near Side Right Doubles Alley (DD) - Bounded by 11, 7, 3, and right doubles alley  
+            if all(keypoints[i] for i in [11, 7, 3]):
+                self._draw_near_right_doubles_alley(frame, keypoints[11], keypoints[7], keypoints[3])
+            
+            # 7. Far Side Left Doubles Alley (AA) - Bounded by 0, 4, 8, and left doubles alley
+            if all(keypoints[i] for i in [0, 4, 8]):
+                self._draw_far_left_doubles_alley(frame, keypoints[0], keypoints[4], keypoints[8])
+            
+            # 8. Far Side Right Doubles Alley (DD) - Bounded by 1, 6, 9, and right doubles alley
+            if all(keypoints[i] for i in [1, 6, 9]):
+                self._draw_far_right_doubles_alley(frame, keypoints[1], keypoints[6], keypoints[9])
                 
         except Exception as e:
             if frame_number == 0:
@@ -149,88 +165,424 @@ class OverlayRenderer:
         
         return frame
     
-    def _draw_service_box_zones(self, frame, p1, p2, p3, p4):
-        """Draw service box zones (A, B, C, D)"""
-        # Create 4 vertical zones
-        zone_colors = [(255, 100, 100), (100, 255, 100), (100, 100, 255), (255, 255, 100)]
+    def _draw_near_side_zones(self, frame, p5, p7, p10, p11):
+        """Draw near side zones (A, B, C, D) - bounded by keypoints 5, 7, 10, 11"""
+        zone_colors = [(100, 100, 255), (100, 255, 100), (255, 100, 100), (100, 255, 255)]
         zone_names = ['A', 'B', 'C', 'D']
         
-        # Calculate zone boundaries
-        x_coords = [p1[0], p2[0], p3[0], p4[0]]
-        y_coords = [p1[1], p2[1], p3[1], p4[1]]
+        # Create the main quadrilateral
+        main_quad = np.array([p5, p7, p11, p10], np.int32)
         
-        min_x, max_x = min(x_coords), max(x_coords)
-        min_y, max_y = min(y_coords), max(y_coords)
-        
-        # Draw 4 vertical zones
-        zone_width = (max_x - min_x) // 4
+        # Draw 4 equal subdivisions
         for i in range(4):
-            x1 = min_x + i * zone_width
-            x2 = min_x + (i + 1) * zone_width
+            # Calculate subdivision points
+            t = (i + 1) / 4.0
             
-            # Draw zone rectangle
-            cv2.rectangle(frame, (x1, min_y), (x2, max_y), zone_colors[i], 2)
+            # Interpolate along the top edge (p5 to p7)
+            top_point = (
+                int(p5[0] + t * (p7[0] - p5[0])),
+                int(p5[1] + t * (p7[1] - p5[1]))
+            )
+            
+            # Interpolate along the bottom edge (p10 to p11)
+            bottom_point = (
+                int(p10[0] + t * (p11[0] - p10[0])),
+                int(p10[1] + t * (p11[1] - p10[1]))
+            )
+            
+            # Create zone polygon
+            if i == 0:
+                zone_poly = np.array([p5, top_point, bottom_point, p10], np.int32)
+            else:
+                prev_t = i / 4.0
+                prev_top = (
+                    int(p5[0] + prev_t * (p7[0] - p5[0])),
+                    int(p5[1] + prev_t * (p7[1] - p5[1]))
+                )
+                prev_bottom = (
+                    int(p10[0] + prev_t * (p11[0] - p10[0])),
+                    int(p10[1] + prev_t * (p11[1] - p10[1]))
+                )
+                zone_poly = np.array([prev_top, top_point, bottom_point, prev_bottom], np.int32)
+            
+            # Draw zone polygon with transparency
+            overlay = frame.copy()
+            cv2.fillPoly(overlay, [zone_poly], zone_colors[i])
+            cv2.addWeighted(overlay, 0.2, frame, 0.8, 0, frame)
+            cv2.polylines(frame, [zone_poly], True, (255, 255, 255), 2)
             
             # Draw zone label
-            center_x = (x1 + x2) // 2
-            center_y = (min_y + max_y) // 2
-            cv2.putText(frame, zone_names[i], (center_x - 10, center_y), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 1, zone_colors[i], 2)
+            center = np.mean(zone_poly, axis=0).astype(int)
+            cv2.putText(frame, zone_names[i], tuple(center), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
     
-    def _draw_baseline_zones(self, frame, p1, p2, p3, p4):
-        """Draw baseline zones (WIDE, BODY, TEE)"""
-        zone_colors = [(255, 100, 255), (100, 255, 255), (255, 200, 100)]
+    def _draw_left_service_box_zones(self, frame, p10, p13, p8, p12):
+        """Draw left service box zones (WIDE, BODY, TEE) - bounded by keypoints 10, 13, 8, 12"""
+        zone_colors = [(255, 100, 255), (255, 255, 100), (100, 200, 255)]
         zone_names = ['WIDE', 'BODY', 'TEE']
         
-        # Calculate zone boundaries
-        x_coords = [p1[0], p2[0], p3[0], p4[0]]
-        y_coords = [p1[1], p2[1], p3[1], p4[1]]
-        
-        min_x, max_x = min(x_coords), max(x_coords)
-        min_y, max_y = min(y_coords), max(y_coords)
-        
-        # Draw 3 vertical zones
-        zone_width = (max_x - min_x) // 3
+        # Draw 3 equal vertical subdivisions (from service line to baseline)
         for i in range(3):
-            x1 = min_x + i * zone_width
-            x2 = min_x + (i + 1) * zone_width
+            t = (i + 1) / 3.0
             
-            # Draw zone rectangle
-            cv2.rectangle(frame, (x1, min_y), (x2, max_y), zone_colors[i], 2)
+            # Interpolate along the service line edge (p10 to p13)
+            service_point = (
+                int(p10[0] + t * (p13[0] - p10[0])),
+                int(p10[1] + t * (p13[1] - p10[1]))
+            )
+            
+            # Interpolate along the baseline edge (p8 to p12)
+            baseline_point = (
+                int(p8[0] + t * (p12[0] - p8[0])),
+                int(p8[1] + t * (p12[1] - p8[1]))
+            )
+            
+            # Create zone polygon
+            if i == 0:
+                zone_poly = np.array([p10, service_point, baseline_point, p8], np.int32)
+            else:
+                prev_t = i / 3.0
+                prev_service = (
+                    int(p10[0] + prev_t * (p13[0] - p10[0])),
+                    int(p10[1] + prev_t * (p13[1] - p10[1]))
+                )
+                prev_baseline = (
+                    int(p8[0] + prev_t * (p12[0] - p8[0])),
+                    int(p8[1] + prev_t * (p12[1] - p8[1]))
+                )
+                zone_poly = np.array([prev_service, service_point, baseline_point, prev_baseline], np.int32)
+            
+            # Draw zone polygon with transparency
+            overlay = frame.copy()
+            cv2.fillPoly(overlay, [zone_poly], zone_colors[i])
+            cv2.addWeighted(overlay, 0.2, frame, 0.8, 0, frame)
+            cv2.polylines(frame, [zone_poly], True, (255, 255, 255), 2)
             
             # Draw zone label
-            center_x = (x1 + x2) // 2
-            center_y = (min_y + max_y) // 2
-            cv2.putText(frame, zone_names[i], (center_x - 20, center_y), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.8, zone_colors[i], 2)
+            center = np.mean(zone_poly, axis=0).astype(int)
+            cv2.putText(frame, zone_names[i], tuple(center), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
     
-    def _draw_doubles_lanes(self, frame, p1, p2):
-        """Draw doubles lanes (AA, DD)"""
-        # Draw left doubles lane (AA) - use p1 as reference
-        if p1:
-            # Create a rectangle for the left doubles lane
-            lane_width = 50
-            lane_height = 200
-            x1 = p1[0] - lane_width
-            y1 = p1[1] - lane_height // 2
-            x2 = p1[0]
-            y2 = p1[1] + lane_height // 2
-            cv2.rectangle(frame, (x1, y1), (x2, y2), (200, 200, 200), 3)
-            cv2.putText(frame, 'AA', (x1 + 5, y1 + 25), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.8, (200, 200, 200), 2)
+    def _draw_right_service_box_zones(self, frame, p13, p11, p9, p12):
+        """Draw right service box zones (TEE, BODY, WIDE) - bounded by keypoints 13, 11, 9, 12"""
+        zone_colors = [(100, 200, 255), (255, 255, 100), (255, 100, 255)]
+        zone_names = ['TEE', 'BODY', 'WIDE']
         
-        # Draw right doubles lane (DD) - use p2 as reference
-        if p2:
-            # Create a rectangle for the right doubles lane
-            lane_width = 50
-            lane_height = 200
-            x1 = p2[0]
-            y1 = p2[1] - lane_height // 2
-            x2 = p2[0] + lane_width
-            y2 = p2[1] + lane_height // 2
-            cv2.rectangle(frame, (x1, y1), (x2, y2), (150, 150, 150), 3)
-            cv2.putText(frame, 'DD', (x1 + 5, y1 + 25), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.8, (150, 150, 150), 2)
+        # Draw 3 equal vertical subdivisions (from service line to baseline)
+        for i in range(3):
+            t = (i + 1) / 3.0
+            
+            # Interpolate along the service line edge (p13 to p11)
+            service_point = (
+                int(p13[0] + t * (p11[0] - p13[0])),
+                int(p13[1] + t * (p11[1] - p13[1]))
+            )
+            
+            # Interpolate along the baseline edge (p12 to p9)
+            baseline_point = (
+                int(p12[0] + t * (p9[0] - p12[0])),
+                int(p12[1] + t * (p9[1] - p12[1]))
+            )
+            
+            # Create zone polygon
+            if i == 0:
+                zone_poly = np.array([p13, service_point, baseline_point, p12], np.int32)
+            else:
+                prev_t = i / 3.0
+                prev_service = (
+                    int(p13[0] + prev_t * (p11[0] - p13[0])),
+                    int(p13[1] + prev_t * (p11[1] - p13[1]))
+                )
+                prev_baseline = (
+                    int(p12[0] + prev_t * (p9[0] - p12[0])),
+                    int(p12[1] + prev_t * (p9[1] - p12[1]))
+                )
+                zone_poly = np.array([prev_service, service_point, baseline_point, prev_baseline], np.int32)
+            
+            # Draw zone polygon with transparency
+            overlay = frame.copy()
+            cv2.fillPoly(overlay, [zone_poly], zone_colors[i])
+            cv2.addWeighted(overlay, 0.2, frame, 0.8, 0, frame)
+            cv2.polylines(frame, [zone_poly], True, (255, 255, 255), 2)
+            
+            # Draw zone label
+            center = np.mean(zone_poly, axis=0).astype(int)
+            cv2.putText(frame, zone_names[i], tuple(center), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+    
+    def _draw_far_side_zones(self, frame, p4, p8, p6, p9):
+        """Draw far side zones (A, B, C, D) - bounded by keypoints 4, 8, 6, 9"""
+        zone_colors = [(100, 100, 255), (100, 255, 100), (255, 100, 100), (100, 255, 255)]
+        zone_names = ['A', 'B', 'C', 'D']
+        
+        # Draw 4 equal subdivisions
+        for i in range(4):
+            t = (i + 1) / 4.0
+            
+            # Interpolate along the top edge (p4 to p6)
+            top_point = (
+                int(p4[0] + t * (p6[0] - p4[0])),
+                int(p4[1] + t * (p6[1] - p4[1]))
+            )
+            
+            # Interpolate along the bottom edge (p8 to p9)
+            bottom_point = (
+                int(p8[0] + t * (p9[0] - p8[0])),
+                int(p8[1] + t * (p9[1] - p8[1]))
+            )
+            
+            # Create zone polygon
+            if i == 0:
+                zone_poly = np.array([p4, top_point, bottom_point, p8], np.int32)
+            else:
+                prev_t = i / 4.0
+                prev_top = (
+                    int(p4[0] + prev_t * (p6[0] - p4[0])),
+                    int(p4[1] + prev_t * (p6[1] - p4[1]))
+                )
+                prev_bottom = (
+                    int(p8[0] + prev_t * (p9[0] - p8[0])),
+                    int(p8[1] + prev_t * (p9[1] - p8[1]))
+                )
+                zone_poly = np.array([prev_top, top_point, bottom_point, prev_bottom], np.int32)
+            
+            # Draw zone polygon with transparency
+            overlay = frame.copy()
+            cv2.fillPoly(overlay, [zone_poly], zone_colors[i])
+            cv2.addWeighted(overlay, 0.2, frame, 0.8, 0, frame)
+            cv2.polylines(frame, [zone_poly], True, (255, 255, 255), 2)
+            
+            # Draw zone label
+            center = np.mean(zone_poly, axis=0).astype(int)
+            cv2.putText(frame, zone_names[i], tuple(center), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+    
+    def _draw_near_left_doubles_alley(self, frame, p2, p5, p10):
+        """Draw near side left doubles alley (AA) - bounded by keypoints 2, 5, 10"""
+        zone_color = (200, 200, 200)  # Light gray for doubles alley
+        
+        # The doubles alley should be bounded by:
+        # - Outside doubles sideline: keypoint 2 (vertical line)
+        # - Inside doubles alley sideline: keypoints 5 to 10 (singles sideline)
+        # - Line from 10 to outside doubles sideline (parallel to line from 2 to 5)
+        # - Baseline: from p2 to p5
+        
+        # For a proper parallelogram, we need both sets of opposite sides to be parallel:
+        # 1. Line from p2 to p5 should be parallel to line from p10 to sideline
+        # 2. Line from p5 to p10 should be parallel to line from p2 to sideline
+        
+        # Calculate the direction vector from p2 to p5 (baseline direction)
+        baseline_dx = p5[0] - p2[0]
+        baseline_dy = p5[1] - p2[1]
+        
+        # Calculate the direction vector from p5 to p10 (service line direction)
+        service_dx = p10[0] - p5[0]
+        service_dy = p10[1] - p5[1]
+        
+        # The outside doubles sideline is vertical at p2[0]
+        outside_sideline_x = p2[0]
+        
+        # Find the intersection point that satisfies both parallel constraints
+        # We need to solve for the point (outside_sideline_x, y) such that:
+        # 1. Line from p10 to this point is parallel to line from p2 to p5
+        # 2. Line from p2 to this point is parallel to line from p5 to p10
+        
+        # For constraint 1: Line p10->(outside_sideline_x, y) parallel to p2->p5
+        # Direction vector: (outside_sideline_x - p10[0], y - p10[1]) parallel to (baseline_dx, baseline_dy)
+        # This gives us: (y - p10[1]) / (outside_sideline_x - p10[0]) = baseline_dy / baseline_dx
+        
+        # For constraint 2: Line p2->(outside_sideline_x, y) parallel to p5->p10  
+        # Direction vector: (outside_sideline_x - p2[0], y - p2[1]) parallel to (service_dx, service_dy)
+        # This gives us: (y - p2[1]) / (outside_sideline_x - p2[0]) = service_dy / service_dx
+        
+        # Solving these two equations for y:
+        # From constraint 1: y = p10[1] + (baseline_dy/baseline_dx) * (outside_sideline_x - p10[0])
+        # From constraint 2: y = p2[1] + (service_dy/service_dx) * (outside_sideline_x - p2[0])
+        
+        # Set them equal and solve for outside_sideline_x, then find y
+        
+        # Since outside_sideline_x = p2[0], we can substitute:
+        if baseline_dx != 0 and service_dx != 0:
+            # Using constraint 1 (since outside_sideline_x = p2[0]):
+            outside_net_y = p10[1] + (baseline_dy / baseline_dx) * (p2[0] - p10[0])
+        else:
+            # Fallback if lines are vertical
+            outside_net_y = p10[1]
+        
+        # Create the parallelogram with correct geometry
+        zone_poly = np.array([
+            p2,  # Outside baseline corner
+            p5,  # Inside baseline corner
+            p10, # Inside service line corner
+            (int(outside_sideline_x), int(outside_net_y))  # Outside net corner
+        ], np.int32)
+        
+        # Draw zone polygon with transparency
+        overlay = frame.copy()
+        cv2.fillPoly(overlay, [zone_poly], zone_color)
+        cv2.addWeighted(overlay, 0.2, frame, 0.8, 0, frame)
+        cv2.polylines(frame, [zone_poly], True, (255, 255, 255), 2)
+        
+        # Draw zone label
+        center = np.mean(zone_poly, axis=0).astype(int)
+        cv2.putText(frame, 'AA', tuple(center), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+    
+    def _draw_near_right_doubles_alley(self, frame, p11, p7, p3):
+        """Draw near side right doubles alley (DD) - bounded by keypoints 11, 7, 3"""
+        zone_color = (150, 150, 150)  # Darker gray for doubles alley
+        
+        # The doubles alley should be bounded by:
+        # - Outside doubles sideline: keypoint 3 (vertical line)
+        # - Inside doubles alley sideline: keypoints 7 to 11 (singles sideline)
+        # - Line from 11 to outside doubles sideline (parallel to line from 3 to 7)
+        # - Baseline: from p3 to p7
+        
+        # For a proper parallelogram, we need both sets of opposite sides to be parallel:
+        # 1. Line from p3 to p7 should be parallel to line from p11 to sideline
+        # 2. Line from p7 to p11 should be parallel to line from p3 to sideline
+        
+        # Calculate the direction vector from p3 to p7 (baseline direction)
+        baseline_dx = p7[0] - p3[0]
+        baseline_dy = p7[1] - p3[1]
+        
+        # Calculate the direction vector from p7 to p11 (service line direction)
+        service_dx = p11[0] - p7[0]
+        service_dy = p11[1] - p7[1]
+        
+        # The outside doubles sideline is vertical at p3[0]
+        outside_sideline_x = p3[0]
+        
+        # Find the intersection point that satisfies both parallel constraints
+        if baseline_dx != 0 and service_dx != 0:
+            # Using constraint 1: line from p11 parallel to p3->p7
+            outside_net_y = p11[1] + (baseline_dy / baseline_dx) * (p3[0] - p11[0])
+        else:
+            # Fallback if lines are vertical
+            outside_net_y = p11[1]
+        
+        # Create the parallelogram with correct geometry
+        zone_poly = np.array([
+            p3,  # Outside baseline corner
+            p7,  # Inside baseline corner
+            p11, # Inside service line corner
+            (int(outside_sideline_x), int(outside_net_y))  # Outside net corner
+        ], np.int32)
+        
+        # Draw zone polygon with transparency
+        overlay = frame.copy()
+        cv2.fillPoly(overlay, [zone_poly], zone_color)
+        cv2.addWeighted(overlay, 0.2, frame, 0.8, 0, frame)
+        cv2.polylines(frame, [zone_poly], True, (255, 255, 255), 2)
+        
+        # Draw zone label
+        center = np.mean(zone_poly, axis=0).astype(int)
+        cv2.putText(frame, 'DD', tuple(center), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+    
+    def _draw_far_left_doubles_alley(self, frame, p0, p4, p8):
+        """Draw far side left doubles alley (AA) - bounded by keypoints 0, 4, 8"""
+        zone_color = (200, 200, 200)  # Light gray for doubles alley
+        
+        # The doubles alley should be bounded by:
+        # - Outside doubles sideline: keypoint 0 (vertical line)
+        # - Inside doubles alley sideline: keypoints 4 to 8 (singles sideline)
+        # - Line from 8 to outside doubles sideline (parallel to line from 0 to 4)
+        # - Baseline: from p0 to p4
+        
+        # For a proper parallelogram, we need both sets of opposite sides to be parallel:
+        # 1. Line from p0 to p4 should be parallel to line from p8 to sideline
+        # 2. Line from p4 to p8 should be parallel to line from p0 to sideline
+        
+        # Calculate the direction vector from p0 to p4 (baseline direction)
+        baseline_dx = p4[0] - p0[0]
+        baseline_dy = p4[1] - p0[1]
+        
+        # Calculate the direction vector from p4 to p8 (service line direction)
+        service_dx = p8[0] - p4[0]
+        service_dy = p8[1] - p4[1]
+        
+        # The outside doubles sideline is vertical at p0[0]
+        outside_sideline_x = p0[0]
+        
+        # Find the intersection point that satisfies both parallel constraints
+        if baseline_dx != 0 and service_dx != 0:
+            # Using constraint 1: line from p8 parallel to p0->p4
+            outside_net_y = p8[1] + (baseline_dy / baseline_dx) * (p0[0] - p8[0])
+        else:
+            # Fallback if lines are vertical
+            outside_net_y = p8[1]
+        
+        # Create the parallelogram with correct geometry
+        zone_poly = np.array([
+            p0,  # Outside baseline corner
+            p4,  # Inside baseline corner
+            p8,  # Inside service line corner
+            (int(outside_sideline_x), int(outside_net_y))  # Outside net corner
+        ], np.int32)
+        
+        # Draw zone polygon with transparency
+        overlay = frame.copy()
+        cv2.fillPoly(overlay, [zone_poly], zone_color)
+        cv2.addWeighted(overlay, 0.2, frame, 0.8, 0, frame)
+        cv2.polylines(frame, [zone_poly], True, (255, 255, 255), 2)
+        
+        # Draw zone label
+        center = np.mean(zone_poly, axis=0).astype(int)
+        cv2.putText(frame, 'AA', tuple(center), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+    
+    def _draw_far_right_doubles_alley(self, frame, p1, p6, p9):
+        """Draw far side right doubles alley (DD) - bounded by keypoints 1, 6, 9"""
+        zone_color = (150, 150, 150)  # Darker gray for doubles alley
+        
+        # The doubles alley should be bounded by:
+        # - Outside doubles sideline: keypoint 1 (vertical line)
+        # - Inside doubles alley sideline: keypoints 6 to 9 (singles sideline)
+        # - Line from 9 to outside doubles sideline (parallel to line from 1 to 6)
+        # - Baseline: from p1 to p6
+        
+        # For a proper parallelogram, we need both sets of opposite sides to be parallel:
+        # 1. Line from p1 to p6 should be parallel to line from p9 to sideline
+        # 2. Line from p6 to p9 should be parallel to line from p1 to sideline
+        
+        # Calculate the direction vector from p1 to p6 (baseline direction)
+        baseline_dx = p6[0] - p1[0]
+        baseline_dy = p6[1] - p1[1]
+        
+        # Calculate the direction vector from p6 to p9 (service line direction)
+        service_dx = p9[0] - p6[0]
+        service_dy = p9[1] - p6[1]
+        
+        # The outside doubles sideline is vertical at p1[0]
+        outside_sideline_x = p1[0]
+        
+        # Find the intersection point that satisfies both parallel constraints
+        if baseline_dx != 0 and service_dx != 0:
+            # Using constraint 1: line from p9 parallel to p1->p6
+            outside_net_y = p9[1] + (baseline_dy / baseline_dx) * (p1[0] - p9[0])
+        else:
+            # Fallback if lines are vertical
+            outside_net_y = p9[1]
+        
+        # Create the parallelogram with correct geometry
+        zone_poly = np.array([
+            p1,  # Outside baseline corner
+            p6,  # Inside baseline corner
+            p9,  # Inside service line corner
+            (int(outside_sideline_x), int(outside_net_y))  # Outside net corner
+        ], np.int32)
+        
+        # Draw zone polygon with transparency
+        overlay = frame.copy()
+        cv2.fillPoly(overlay, [zone_poly], zone_color)
+        cv2.addWeighted(overlay, 0.2, frame, 0.8, 0, frame)
+        cv2.polylines(frame, [zone_poly], True, (255, 255, 255), 2)
+        
+        # Draw zone label
+        center = np.mean(zone_poly, axis=0).astype(int)
+        cv2.putText(frame, 'DD', tuple(center), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
     
     def render_positioning_overlay(self, frame: np.ndarray, frame_number: int) -> np.ndarray:
         """Render player positioning overlay"""
