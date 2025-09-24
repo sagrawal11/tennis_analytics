@@ -172,7 +172,7 @@ class TraceBallDetector:
         # Load TrackNet model
         self.detector = BallTrackerNet(out_channels=out_channels)
         try:
-            saved_state_dict = torch.load(model_path, map_location=torch.device("cpu"))
+            saved_state_dict = torch.load(model_path, map_location=torch.device("cpu"), weights_only=False)
             self.detector.load_state_dict(saved_state_dict['model_state'])
             logger.info(f"Loaded TrackNet model from {model_path}")
         except Exception as e:
@@ -405,6 +405,11 @@ class HybridBallDetector:
         trace_quality = self.assess_detection_quality(trace_x, trace_y, trace_conf, "trace")
         rfdetr_quality = self.assess_detection_quality(rfdetr_x, rfdetr_y, rfdetr_conf, "rfdetr")
         
+        # Debug logging
+        if trace_x is not None or rfdetr_x is not None:
+            logger.debug(f"TRACE: ({trace_x}, {trace_y}) conf={trace_conf:.3f} quality={trace_quality:.3f}")
+            logger.debug(f"RF-DETR: ({rfdetr_x}, {rfdetr_y}) conf={rfdetr_conf:.3f} quality={rfdetr_quality:.3f}")
+        
         # Choose the best detection with improved logic
         best_quality = 0.0
         chosen_x, chosen_y, chosen_conf = None, None, 0.0
@@ -457,6 +462,10 @@ class HybridBallDetector:
         elif chosen_method == "rfdetr":
             self.rfdetr_quality_score = 0.7 * self.rfdetr_quality_score + 0.3 * best_quality
         
+        # Debug logging for chosen method
+        if chosen_method != "none":
+            logger.debug(f"CHOSEN: {chosen_method} at ({chosen_x}, {chosen_y}) conf={chosen_conf:.3f} quality={best_quality:.3f}")
+        
         # Store detection in history
         self.detection_history.append({
             'x': chosen_x,
@@ -491,7 +500,7 @@ class RFDETRBallDetector:
             
         try:
             # Load checkpoint first to get configuration
-            checkpoint = torch.load(model_path, map_location='cpu')
+            checkpoint = torch.load(model_path, map_location='cpu', weights_only=False)
             if 'args' in checkpoint and 'model' in checkpoint:
                 args = checkpoint['args']
                 logger.info(f"RF-DETR model with {args.num_classes} classes: {args.class_names}")

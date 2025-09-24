@@ -17,41 +17,342 @@ import argparse
 import logging
 from typing import List, Tuple, Optional, Dict
 import os
+import torch
+import torch.nn.functional as F
+import yaml
+from pathlib import Path
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(levelname)s:%(name)s:%(message)s')
 logger = logging.getLogger(__name__)
 
+# Import court detection functions from TennisCourtDetector
+try:
+    import sys
+    import os
+    # Add TennisCourtDetector to path for relative imports
+    sys.path.append(os.path.join(os.path.dirname(__file__), 'TennisCourtDetector'))
+    
+    from postprocess import postprocess, refine_kps
+    from tracknet import BallTrackerNet
+    COURT_DETECTION_AVAILABLE = True
+    logger.info("Court detection imports successful")
+except ImportError as e:
+    COURT_DETECTION_AVAILABLE = False
+    logger.warning(f"Court detection imports failed: {e} - Court detection will be disabled")
+
 
 class CourtSegmenter:
     """Tennis court segmentation system for zone-based analytics"""
     
-    def __init__(self):
-        """Initialize court segmenter"""
+    def __init__(self, config_path: str = "config.yaml"):
+        """Initialize court segmenter with court detection model"""
         self.court_keypoints = None
         self.zone_definitions = {}
+        self.model = None
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.config = {}
+        
+        # Load configuration
+        self._load_config(config_path)
+        
+        # Initialize court detection model
+        if COURT_DETECTION_AVAILABLE:
+            self._initialize_court_model()
         
         logger.info("Court segmenter initialized")
     
+    def _load_config(self, config_path: str):
+        """Load configuration from YAML file"""
+        try:
+            with open(config_path, 'r') as f:
+                self.config = yaml.safe_load(f)
+            logger.info(f"Loaded configuration from {config_path}")
+        except Exception as e:
+            logger.warning(f"Could not load config from {config_path}: {e}")
+            # Set default configuration
+            self.config = {
+                'input_width': 640,
+                'input_height': 360,
+                'use_refine_kps': True,
+                'model_path': 'TennisCourtDetector/Weights.pth'
+            }
+    
+    def _initialize_court_model(self):
+        """Initialize the court detection model"""
+        try:
+            # Try to get model path from config, fallback to default
+            model_path = self.config.get('models', {}).get('court_detector', 'model_tennis_court_det.pt')
+            if not os.path.exists(model_path):
+                logger.warning(f"Court detection model not found at {model_path}")
+                return
+            
+            # Initialize BallTrackerNet model for court detection
+            self.model = BallTrackerNet(out_channels=15)  # 15 court keypoints (model expects 15)
+            self.model.load_state_dict(torch.load(model_path, map_location=self.device, weights_only=False))
+            self.model.to(self.device)
+            self.model.eval()
+            
+            logger.info(f"Court detection model initialized successfully from {model_path}")
+        except Exception as e:
+            logger.error(f"Failed to initialize court detection model: {e}")
+            self.model = None
+    
+    def detect_court_keypoints_from_video(self, video_file: str, output_csv: str = None) -> bool:
+        """Detect court keypoints from video by processing all frames and averaging"""
+        if not self.model:
+            logger.error("Court detection model not available")
+            return False
+        
+        try:
+            cap = cv2.VideoCapture(video_file)
+            if not cap.isOpened():
+                logger.error(f"Could not open video file: {video_file}")
+                return False
+            
+            all_keypoints = []
+            frame_count = 0
+            valid_frame_count = 0
+            csv_data = []
+            
+            logger.info("Processing video frames for court detection...")
+            
+            while True:
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                
+                # Detect court keypoints in this frame
+                frame_keypoints = self._detect_court_in_frame(frame)
+                if frame_keypoints and len([k for k in frame_keypoints if k[0] is not None]) >= 4:
+                    all_keypoints.append(frame_keypoints)
+                    valid_frame_count += 1
+                    
+                    # Store frame data for CSV
+                    frame_data = {'frame': frame_count}
+                    for i, (x, y) in enumerate(frame_keypoints):
+                        frame_data[f'keypoint_{i}_x'] = x if x is not None else ''
+                        frame_data[f'keypoint_{i}_y'] = y if y is not None else ''
+                    csv_data.append(frame_data)
+                
+                frame_count += 1
+                if frame_count % 30 == 0:
+                    logger.info(f"Processed {frame_count} frames, {valid_frame_count} valid detections")
+            
+            cap.release()
+            
+            if all_keypoints:
+                # Calculate average position for each keypoint across all frames
+                self.court_keypoints = self._average_keypoints(all_keypoints)
+                self._calculate_court_zones()
+                
+                # Add averaged keypoints as final row
+                if self.court_keypoints:
+                    avg_data = {'frame': 'AVERAGE'}
+                    for i, (x, y) in enumerate(self.court_keypoints):
+                        avg_data[f'keypoint_{i}_x'] = x if x is not None else ''
+                        avg_data[f'keypoint_{i}_y'] = y if y is not None else ''
+                    csv_data.append(avg_data)
+                
+                # Save CSV if output file specified
+                if output_csv and csv_data:
+                    df = pd.DataFrame(csv_data)
+                    df.to_csv(output_csv, index=False)
+                    logger.info(f"Court keypoints saved to {output_csv}")
+                
+                logger.info(f"Detected and averaged court keypoints from {valid_frame_count} frames")
+                return True
+            else:
+                logger.warning("No valid court keypoints detected in video")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error detecting court keypoints from video: {e}")
+            return False
+    
+    def _detect_court_in_frame(self, frame: np.ndarray) -> List[Tuple]:
+        """Detect court keypoints in a single frame"""
+        if not self.model:
+            return []
+        
+        try:
+            # Get model input dimensions from court_detection config
+            court_config = self.config.get('court_detection', {})
+            input_width = court_config.get('input_width', 640)
+            input_height = court_config.get('input_height', 360)
+            
+            # Resize frame for model input
+            img_resized = cv2.resize(frame, (input_width, input_height))
+            
+            # Preprocess input
+            inp = (img_resized.astype(np.float32) / 255.)
+            inp = torch.tensor(inp).permute(2, 0, 1)  # Convert to (C, H, W) format
+            inp = inp.unsqueeze(0).to(self.device)
+            
+            # Run inference
+            with torch.no_grad():
+                out = self.model(inp.float())
+                
+                if isinstance(out, tuple):
+                    out = out[0]
+                
+                # Take the first element to remove batch dimension
+                out = out[0]
+                pred = F.sigmoid(out).detach().cpu().numpy()
+            
+            # Extract keypoints from heatmaps
+            points = []
+            for kps_num in range(15):  # 15 court keypoints
+                heatmap = (pred[kps_num] * 255).astype(np.uint8)
+                
+                # Postprocess heatmap to get keypoint coordinates
+                try:
+                    x_pred, y_pred = postprocess(heatmap, low_thresh=170, max_radius=25)
+                except Exception as e:
+                    x_pred, y_pred = None, None
+                
+                # Refine keypoints if enabled
+                if (court_config.get('use_refine_kps', True) and 
+                    kps_num not in [8, 12, 9] and x_pred and y_pred):
+                    try:
+                        x_pred, y_pred = refine_kps(frame, int(y_pred), int(x_pred))
+                    except Exception as e:
+                        pass
+                
+                # Scale coordinates back to original video resolution
+                if x_pred is not None and y_pred is not None:
+                    # Postprocess already scales by 2, so coordinates are at 720x1280
+                    scale_x = frame.shape[1] / (input_width * 2)
+                    scale_y = frame.shape[0] / (input_height * 2)
+                    x_scaled = int(x_pred * scale_x)
+                    y_scaled = int(y_pred * scale_y)
+                    points.append((x_scaled, y_scaled))
+                else:
+                    points.append((x_pred, y_pred))
+            
+            return points
+            
+        except Exception as e:
+            logger.warning(f"Error detecting court in frame: {e}")
+            return []
+    
+    def _load_keypoints_from_individual_columns(self, df: pd.DataFrame):
+        """Load keypoints from individual keypoint columns format"""
+        try:
+            # Get the number of keypoints
+            keypoint_columns = [col for col in df.columns if col.startswith('keypoint_') and col.endswith('_x')]
+            num_keypoints = len(keypoint_columns)
+            
+            logger.info(f"Loading {num_keypoints} keypoints from individual columns")
+            
+            # Collect all keypoints from all frames
+            all_keypoints = []
+            valid_frame_count = 0
+            
+            for idx, row in df.iterrows():
+                frame_keypoints = []
+                valid_keypoints = 0
+                
+                for i in range(num_keypoints):
+                    x_col = f'keypoint_{i}_x'
+                    y_col = f'keypoint_{i}_y'
+                    
+                    if x_col in row and y_col in row:
+                        x = row[x_col]
+                        y = row[y_col]
+                        
+                        # Check if keypoint is valid (not NaN and not empty)
+                        if pd.notna(x) and pd.notna(y) and x != '' and y != '':
+                            try:
+                                x_val = float(x)
+                                y_val = float(y)
+                                if x_val > 0 and y_val > 0:  # Basic validation
+                                    frame_keypoints.append([x_val, y_val])
+                                    valid_keypoints += 1
+                                else:
+                                    frame_keypoints.append([None, None])
+                            except (ValueError, TypeError):
+                                frame_keypoints.append([None, None])
+                        else:
+                            frame_keypoints.append([None, None])
+                
+                # Only use frames with at least 10 valid keypoints
+                if valid_keypoints >= 10:
+                    all_keypoints.append(frame_keypoints)
+                    valid_frame_count += 1
+            
+            if valid_frame_count == 0:
+                logger.warning("No valid frames found with sufficient keypoints")
+                return
+            
+            logger.info(f"Found {valid_frame_count} valid frames with keypoints")
+            
+            # Average the keypoints across all valid frames
+            averaged_keypoints = []
+            for i in range(num_keypoints):
+                valid_x_values = []
+                valid_y_values = []
+                
+                for frame_keypoints in all_keypoints:
+                    if (i < len(frame_keypoints) and 
+                        frame_keypoints[i][0] is not None and 
+                        frame_keypoints[i][1] is not None):
+                        valid_x_values.append(frame_keypoints[i][0])
+                        valid_y_values.append(frame_keypoints[i][1])
+                
+                if valid_x_values and valid_y_values:
+                    avg_x = sum(valid_x_values) / len(valid_x_values)
+                    avg_y = sum(valid_y_values) / len(valid_y_values)
+                    averaged_keypoints.append([avg_x, avg_y])
+                else:
+                    averaged_keypoints.append([None, None])
+            
+            # Set the averaged keypoints
+            self.court_keypoints = averaged_keypoints
+            logger.info(f"Loaded and averaged {len([kp for kp in averaged_keypoints if kp[0] is not None])} court keypoints")
+            
+            # Calculate court zones with the loaded keypoints
+            self._calculate_court_zones()
+            
+        except Exception as e:
+            logger.error(f"Error loading keypoints from individual columns: {e}")
+            raise
+    
     def load_court_keypoints(self, csv_file: str):
-        """Load court keypoints from CSV data"""
+        """Load and average court keypoints from CSV data"""
         try:
             df = pd.read_csv(csv_file)
             
-            # Look for court keypoints in the CSV
+            # Check if we have individual keypoint columns (new format)
+            keypoint_columns = [col for col in df.columns if col.startswith('keypoint_') and col.endswith('_x')]
+            if keypoint_columns:
+                logger.info(f"Found {len(keypoint_columns)} keypoint columns in CSV")
+                self._load_keypoints_from_individual_columns(df)
+                return
+            
+            # Look for court keypoints in the CSV (old format)
             if 'court_keypoints' in df.columns:
-                # Get the first valid court keypoints
+                # Collect all valid court keypoints from all frames
+                all_keypoints = []
+                valid_frame_count = 0
+                
                 for idx, row in df.iterrows():
                     court_keypoints_str = row.get('court_keypoints', '')
                     if court_keypoints_str and court_keypoints_str != '':
                         # Parse court keypoints string
                         court_keypoints = self._parse_court_keypoints(court_keypoints_str)
                         if court_keypoints and len(court_keypoints) >= 4:
-                            self.court_keypoints = court_keypoints
-                            self._calculate_court_zones()
-                            logger.info(f"Loaded court keypoints from frame {idx}")
-                            return True
-                logger.warning("No valid court keypoints found in CSV")
+                            all_keypoints.append(court_keypoints)
+                            valid_frame_count += 1
+                
+                if all_keypoints:
+                    # Calculate average position for each keypoint across all frames
+                    self.court_keypoints = self._average_keypoints(all_keypoints)
+                    self._calculate_court_zones()
+                    logger.info(f"Loaded and averaged court keypoints from {valid_frame_count} frames")
+                    return True
+                else:
+                    logger.warning("No valid court keypoints found in CSV")
             else:
                 logger.warning("No court_keypoints column found in CSV")
                 
@@ -59,6 +360,38 @@ class CourtSegmenter:
             logger.error(f"Error loading court keypoints: {e}")
         
         return False
+    
+    def _average_keypoints(self, all_keypoints: List[List[Tuple]]) -> List[Tuple]:
+        """Calculate average position for each keypoint across all frames"""
+        if not all_keypoints:
+            return []
+        
+        # Get the maximum number of keypoints across all frames
+        max_keypoints = max(len(frame_keypoints) for frame_keypoints in all_keypoints)
+        averaged_keypoints = []
+        
+        for i in range(max_keypoints):
+            x_values = []
+            y_values = []
+            
+            # Collect x,y values for this keypoint index across all frames
+            for frame_keypoints in all_keypoints:
+                if i < len(frame_keypoints):
+                    x, y = frame_keypoints[i]
+                    if x is not None and y is not None:
+                        x_values.append(x)
+                        y_values.append(y)
+            
+            # Calculate average if we have valid values
+            if x_values and y_values:
+                avg_x = sum(x_values) / len(x_values)
+                avg_y = sum(y_values) / len(y_values)
+                averaged_keypoints.append((avg_x, avg_y))
+            else:
+                averaged_keypoints.append((None, None))
+        
+        logger.info(f"Averaged {len([k for k in averaged_keypoints if k[0] is not None])} valid keypoints from {len(all_keypoints)} frames")
+        return averaged_keypoints
     
     def _parse_court_keypoints(self, keypoints_str: str) -> List[Tuple]:
         """Parse court keypoints from CSV string format"""
@@ -93,7 +426,7 @@ class CourtSegmenter:
     def _calculate_court_zones(self):
         """Calculate court zones based on actual court keypoints"""
         if not self.court_keypoints or len(self.court_keypoints) < 14:
-            logger.warning("Not enough court keypoints for zone calculation (need 14)")
+            logger.warning("Not enough court keypoints for zone calculation (need at least 14)")
             return
         
         # Extract valid keypoints (court keypoints are 0-indexed)
@@ -590,15 +923,12 @@ class CourtSegmentationProcessor:
         self.court_segmenter = CourtSegmenter()
         self.zone_analytics = {}  # Track analytics per zone
     
-    def process_video(self, video_file: str, csv_file: str, output_file: str = None, show_viewer: bool = False):
+    def process_video(self, video_file: str, output_file: str = None, csv_file: str = None, show_viewer: bool = False):
         """Process video with court segmentation"""
-        # Load court keypoints
-        if not self.court_segmenter.load_court_keypoints(csv_file):
-            logger.error("Failed to load court keypoints")
+        # Detect court keypoints from video
+        if not self.court_segmenter.detect_court_keypoints_from_video(video_file, csv_file):
+            logger.error("Failed to detect court keypoints from video")
             return
-        
-        # Load CSV data
-        df = pd.read_csv(csv_file)
         cap = cv2.VideoCapture(video_file)
         
         if not cap.isOpened():
@@ -608,8 +938,9 @@ class CourtSegmentationProcessor:
         fps = int(cap.get(cv2.CAP_PROP_FPS))
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         
-        logger.info(f"Processing {len(df)} frames from {video_file}")
+        logger.info(f"Processing {total_frames} frames from {video_file}")
         logger.info(f"Video: {width}x{height} @ {fps}fps")
         
         # Setup video writer if output specified
@@ -624,14 +955,11 @@ class CourtSegmentationProcessor:
             cv2.resizeWindow('Tennis Court Segmentation', 1200, 800)
         
         try:
-            for idx, row in df.iterrows():
+            frame_idx = 0
+            while True:
                 ret, frame = cap.read()
                 if not ret:
                     break
-                
-                # Get ball position from CSV
-                ball_x = self._parse_float(row.get('ball_x', ''))
-                ball_y = self._parse_float(row.get('ball_y', ''))
                 
                 # Draw court overlay
                 frame_with_overlay = self.court_segmenter.draw_court_overlay(frame)
@@ -639,8 +967,8 @@ class CourtSegmentationProcessor:
                 # Draw court keypoints
                 frame_with_overlay = self.court_segmenter.draw_court_keypoints(frame_with_overlay)
                 
-                # Add ball position and zone info
-                frame_with_overlay = self._add_ball_info(frame_with_overlay, ball_x, ball_y, idx)
+                # Add frame info
+                frame_with_overlay = self._add_frame_info(frame_with_overlay, frame_idx)
                 
                 # Write frame
                 if out:
@@ -656,8 +984,10 @@ class CourtSegmentationProcessor:
                         cv2.waitKey(0)
                 
                 # Progress update
-                if idx % 30 == 0:
-                    logger.info(f"Processed {idx}/{len(df)} frames ({idx/len(df)*100:.1f}%)")
+                if frame_idx % 30 == 0:
+                    logger.info(f"Processed {frame_idx}/{total_frames} frames ({frame_idx/total_frames*100:.1f}%)")
+                
+                frame_idx += 1
         
         finally:
             # Cleanup
@@ -712,20 +1042,27 @@ class CourtSegmentationProcessor:
                            cv2.FONT_HERSHEY_SIMPLEX, font_scale, text_color, thickness)
         
         return frame
+    
+    def _add_frame_info(self, frame: np.ndarray, frame_number: int) -> np.ndarray:
+        """Add frame information to frame"""
+        # Frame info
+        cv2.putText(frame, f"Frame: {frame_number}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+        cv2.putText(frame, "Court Segmentation", (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
+        return frame
 
 
 def main():
     """Main function for standalone usage"""
     parser = argparse.ArgumentParser(description='Tennis Court Segmentation System')
     parser.add_argument('--video', required=True, help='Input video file')
-    parser.add_argument('--csv', required=True, help='Input CSV file with court keypoints data')
     parser.add_argument('--output', default='tennis_court_segmentation.mp4', help='Output video file')
+    parser.add_argument('--csv', default='court_keypoints.csv', help='Output CSV file for court keypoints')
     parser.add_argument('--viewer', action='store_true', help='Show real-time viewer')
     
     args = parser.parse_args()
     
     processor = CourtSegmentationProcessor()
-    processor.process_video(args.video, args.csv, args.output, show_viewer=args.viewer)
+    processor.process_video(args.video, args.output, args.csv, show_viewer=args.viewer)
 
 
 if __name__ == "__main__":
