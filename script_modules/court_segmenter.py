@@ -31,7 +31,7 @@ try:
     import sys
     import os
     # Add TennisCourtDetector to path for relative imports
-    sys.path.append(os.path.join(os.path.dirname(__file__), 'TennisCourtDetector'))
+    sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'TennisCourtDetector'))
     
     from postprocess import postprocess, refine_kps
     from tracknet import BallTrackerNet
@@ -920,11 +920,14 @@ class CourtSegmentationProcessor:
     
     def __init__(self):
         """Initialize processor"""
-        self.court_segmenter = CourtSegmenter()
+        self.court_segmenter = None
         self.zone_analytics = {}  # Track analytics per zone
     
     def process_video(self, video_file: str, output_file: str = None, csv_file: str = None, show_viewer: bool = False):
         """Process video with court segmentation"""
+        # Create a fresh CourtSegmenter instance for each video
+        self.court_segmenter = CourtSegmenter()
+        
         # Detect court keypoints from video
         if not self.court_segmenter.detect_court_keypoints_from_video(video_file, csv_file):
             logger.error("Failed to detect court keypoints from video")
