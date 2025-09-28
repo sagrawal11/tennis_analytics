@@ -32,7 +32,7 @@ yolo_ball:
 # Ball Tracking Settings
 ball_tracking:
   max_velocity: 200  # Maximum expected ball velocity in pixels per frame
-  min_confidence: 0.4  # Minimum confidence for ball detection
+  min_confidence: 0.3  # Minimum confidence for ball detection
   smoothing_factor: 0.7  # Smoothing factor for ball position
   prediction_frames: 3  # Number of frames to predict ahead
 

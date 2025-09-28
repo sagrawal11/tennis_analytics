@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 class BounceDetector:
-    """Ball bounce detection with court boundary validation"""
+    """Ball bounce detection based on trajectory analysis"""
     
     def __init__(self):
         """Initialize bounce detector"""
@@ -32,52 +32,8 @@ class BounceDetector:
         self.min_bounce_gap_frames = 30  # Minimum frames between bounces (1 second at 30fps)
         self.last_bounce_frame = -1  # Track last bounce frame
         
-        # Court boundary validation
-        self.court_keypoints = None  # Will be set from CSV data
-        self.court_boundary_polygon = None  # Computed court boundary
-        
         logger.info("Bounce detector initialized")
     
-    def set_court_keypoints(self, court_keypoints: List[Tuple]):
-        """Set court keypoints for boundary validation"""
-        self.court_keypoints = court_keypoints
-        self._compute_court_boundary()
-    
-    def _compute_court_boundary(self):
-        """Compute court boundary polygon from keypoints"""
-        if not self.court_keypoints or len(self.court_keypoints) < 4:
-            self.court_boundary_polygon = None
-            return
-        
-        # Extract valid keypoints (corners of the court)
-        # Keypoints 0-3 are typically the court corners
-        valid_points = []
-        for i in range(min(4, len(self.court_keypoints))):
-            point = self.court_keypoints[i]
-            if point[0] is not None and point[1] is not None:
-                valid_points.append((int(point[0]), int(point[1])))
-        
-        if len(valid_points) >= 4:
-            # Create a polygon from the court corners
-            # Order: top-left, top-right, bottom-right, bottom-left
-            self.court_boundary_polygon = np.array(valid_points, dtype=np.int32)
-            logger.info(f"Court boundary computed with {len(valid_points)} points")
-        else:
-            self.court_boundary_polygon = None
-            logger.warning("Not enough valid court keypoints for boundary computation")
-    
-    def _is_within_court(self, x: float, y: float) -> bool:
-        """Check if a point is within the court boundaries"""
-        if self.court_boundary_polygon is None:
-            return True  # If no court boundary, allow all bounces
-        
-        try:
-            point = (int(x), int(y))
-            result = cv2.pointPolygonTest(self.court_boundary_polygon, point, False)
-            return result >= 0  # Inside or on the boundary
-        except Exception as e:
-            logger.warning(f"Error checking court boundary: {e}")
-            return True  # If error, allow the bounce
     
     
     def add_ball_position(self, ball_x: Optional[float], ball_y: Optional[float], frame_number: int):
@@ -90,7 +46,7 @@ class BounceDetector:
     
     def detect_bounce(self, current_frame: int) -> Tuple[bool, float]:
         """
-        Detect if there's a bounce in the current trajectory within court boundaries
+        Detect if there's a bounce in the current trajectory using hybrid approach
         
         Returns:
             Tuple of (is_bounce, confidence)
@@ -99,10 +55,196 @@ class BounceDetector:
         if current_frame - self.last_bounce_frame < self.min_bounce_gap_frames:
             return False, 0.0
         
-        # For now, return False until we implement new bounce detection logic
-        # TODO: Implement new bounce detection algorithm
-        return False, 0.0
+        # Use window-based trajectory analysis
+        bounce_confidence = self._detect_bounce_windowed(current_frame)
+        
+        # Update last bounce frame if bounce detected
+        if bounce_confidence > 0.7:
+            self.last_bounce_frame = current_frame
+        
+        return bounce_confidence > 0.7, bounce_confidence
     
+    def _detect_bounce_windowed(self, current_frame: int, window_size: int = 10) -> float:
+        """
+        Detect bounces using sliding window approach inspired by research
+        Based on the AI Tennis Ball Bounce Detection research
+        """
+        # Get recent trajectory data
+        valid_positions = [(x, y, frame) for x, y, frame in self.ball_trajectory 
+                          if x is not None and y is not None]
+        
+        if len(valid_positions) < window_size:
+            return 0.0
+        
+        # Extract window of recent positions
+        recent_window = valid_positions[-window_size:]
+        x_coords = [pos[0] for pos in recent_window]
+        y_coords = [pos[1] for pos in recent_window]
+        
+        # Analyze trajectory patterns for bounce indicators
+        bounce_confidence = self._analyze_trajectory_patterns(x_coords, y_coords)
+        
+        return bounce_confidence
+    
+    def _analyze_trajectory_patterns(self, x_coords: List[float], y_coords: List[float]) -> float:
+        """
+        Analyze trajectory for bounce indicators based on physics and research insights
+        """
+        confidence = 0.0
+        
+        if len(x_coords) < 3 or len(y_coords) < 3:
+            return 0.0
+        
+        # 1. Y-direction velocity reversal (most important physics indicator)
+        y_velocity_score = self._analyze_y_velocity_reversal(y_coords)
+        confidence += y_velocity_score * 0.4  # 40% weight
+        
+        # 2. Trajectory curvature (sharp direction changes)
+        curvature_score = self._analyze_trajectory_curvature(x_coords, y_coords)
+        confidence += curvature_score * 0.3  # 30% weight
+        
+        # 3. Speed changes (bounces often show speed reduction)
+        speed_score = self._analyze_speed_changes(x_coords, y_coords)
+        confidence += speed_score * 0.2  # 20% weight
+        
+        # 4. Acceleration analysis (sudden acceleration changes)
+        acceleration_score = self._analyze_acceleration_patterns(x_coords, y_coords)
+        confidence += acceleration_score * 0.1  # 10% weight
+        
+        return min(1.0, confidence)
+    
+    def _analyze_y_velocity_reversal(self, y_coords: List[float]) -> float:
+        """
+        Detect Y-velocity reversals indicating bounces
+        This is the most reliable physics-based indicator
+        """
+        if len(y_coords) < 3:
+            return 0.0
+        
+        # Calculate Y-velocities
+        y_velocities = [y_coords[i] - y_coords[i-1] for i in range(1, len(y_coords))]
+        
+        # Look for velocity reversals in Y direction
+        max_reversal_strength = 0.0
+        
+        for i in range(1, len(y_velocities)):
+            prev_vel = y_velocities[i-1]
+            curr_vel = y_velocities[i]
+            
+            # Check for upward bounce (negative to positive velocity)
+            if prev_vel < -2 and curr_vel > 2:  # Significant upward reversal
+                reversal_strength = abs(curr_vel - prev_vel)
+                max_reversal_strength = max(max_reversal_strength, reversal_strength)
+            
+            # Check for downward bounce (positive to negative velocity) 
+            elif prev_vel > 2 and curr_vel < -2:  # Significant downward reversal
+                reversal_strength = abs(curr_vel - prev_vel)
+                max_reversal_strength = max(max_reversal_strength, reversal_strength)
+        
+        # Normalize reversal strength to 0-1 scale
+        # Typical reversal strength is 10-50 pixels, so normalize accordingly
+        return min(1.0, max_reversal_strength / 30.0)
+    
+    def _analyze_trajectory_curvature(self, x_coords: List[float], y_coords: List[float]) -> float:
+        """
+        Detect sharp direction changes in trajectory indicating bounces
+        """
+        if len(x_coords) < 3:
+            return 0.0
+        
+        max_angle_change = 0.0
+        
+        # Calculate trajectory angles and look for sharp changes
+        for i in range(1, len(x_coords)-1):
+            # Calculate direction vectors
+            dx1 = x_coords[i] - x_coords[i-1]
+            dy1 = y_coords[i] - y_coords[i-1]
+            dx2 = x_coords[i+1] - x_coords[i]
+            dy2 = y_coords[i+1] - y_coords[i]
+            
+            # Skip if either vector is too small
+            if abs(dx1) < 0.1 and abs(dy1) < 0.1:
+                continue
+            if abs(dx2) < 0.1 and abs(dy2) < 0.1:
+                continue
+            
+            # Calculate angles
+            angle1 = np.arctan2(dy1, dx1)
+            angle2 = np.arctan2(dy2, dx2)
+            
+            # Calculate angle change
+            angle_change = abs(angle2 - angle1)
+            if angle_change > np.pi:
+                angle_change = 2*np.pi - angle_change
+            
+            max_angle_change = max(max_angle_change, angle_change)
+        
+        # Convert to score: sharp changes (>60 degrees) get high scores
+        if max_angle_change > np.pi/3:  # 60 degrees
+            return min(1.0, (max_angle_change - np.pi/3) / (np.pi/2))  # Scale to 0-1
+        return 0.0
+    
+    def _analyze_speed_changes(self, x_coords: List[float], y_coords: List[float]) -> float:
+        """
+        Detect significant speed changes that often occur at bounces
+        """
+        if len(x_coords) < 3:
+            return 0.0
+        
+        # Calculate speeds between consecutive points
+        speeds = []
+        for i in range(1, len(x_coords)):
+            speed = np.sqrt((x_coords[i] - x_coords[i-1])**2 + (y_coords[i] - y_coords[i-1])**2)
+            speeds.append(speed)
+        
+        if len(speeds) < 2:
+            return 0.0
+        
+        # Look for significant speed changes
+        max_speed_change = 0.0
+        for i in range(1, len(speeds)):
+            speed_change = abs(speeds[i] - speeds[i-1])
+            max_speed_change = max(max_speed_change, speed_change)
+        
+        # Normalize: significant speed changes are 10+ pixels
+        avg_speed = np.mean(speeds)
+        if avg_speed > 0:
+            relative_change = max_speed_change / avg_speed
+            return min(1.0, relative_change)
+        
+        return 0.0
+    
+    def _analyze_acceleration_patterns(self, x_coords: List[float], y_coords: List[float]) -> float:
+        """
+        Detect sudden acceleration changes that occur at bounces
+        """
+        if len(x_coords) < 4:
+            return 0.0
+        
+        # Calculate accelerations (second derivative of position)
+        max_acceleration_change = 0.0
+        
+        for i in range(2, len(x_coords)-1):
+            # Calculate velocity vectors
+            vx1 = x_coords[i-1] - x_coords[i-2]
+            vy1 = y_coords[i-1] - y_coords[i-2]
+            vx2 = x_coords[i] - x_coords[i-1]
+            vy2 = y_coords[i] - y_coords[i-1]
+            vx3 = x_coords[i+1] - x_coords[i]
+            vy3 = y_coords[i+1] - y_coords[i]
+            
+            # Calculate acceleration vectors
+            ax1 = vx2 - vx1
+            ay1 = vy2 - vy1
+            ax2 = vx3 - vx2
+            ay2 = vy3 - vy2
+            
+            # Calculate acceleration change magnitude
+            accel_change = np.sqrt((ax2 - ax1)**2 + (ay2 - ay1)**2)
+            max_acceleration_change = max(max_acceleration_change, accel_change)
+        
+        # Normalize acceleration changes
+        return min(1.0, max_acceleration_change / 20.0)  # Scale based on typical values
     
     def get_trajectory_info(self) -> Dict:
         """Get information about current trajectory"""
@@ -141,8 +283,6 @@ class TennisBounceProcessor:
         logger.info(f"Processing {len(df)} frames from {video_file}")
         logger.info(f"Video: {width}x{height} @ {fps}fps")
         
-        # Load court keypoints from CSV for boundary validation
-        self._load_court_keypoints(df)
         
         # Setup video writer if output specified
         out = None
@@ -183,6 +323,8 @@ class TennisBounceProcessor:
                         'ball_x': ball_x,
                         'ball_y': ball_y
                     })
+                    # Update last bounce frame
+                    self.bounce_detector.last_bounce_frame = idx
                 
                 # Add overlays
                 frame_with_overlays = self._add_overlays(frame, idx, ball_x, ball_y, is_bounce, confidence)
@@ -266,52 +408,6 @@ class TennisBounceProcessor:
         
         return frame
     
-    def _load_court_keypoints(self, df: pd.DataFrame):
-        """Load court keypoints from CSV data"""
-        try:
-            # Look for court keypoints in the CSV
-            if 'court_keypoints' in df.columns:
-                # Get the first valid court keypoints
-                for idx, row in df.iterrows():
-                    court_keypoints_str = row.get('court_keypoints', '')
-                    if court_keypoints_str and court_keypoints_str != '':
-                        # Parse court keypoints string
-                        court_keypoints = self._parse_court_keypoints(court_keypoints_str)
-                        if court_keypoints and len(court_keypoints) >= 4:
-                            self.bounce_detector.set_court_keypoints(court_keypoints)
-                            logger.info(f"Loaded court keypoints from frame {idx}")
-                            return
-                logger.warning("No valid court keypoints found in CSV")
-            else:
-                logger.warning("No court_keypoints column found in CSV")
-        except Exception as e:
-            logger.warning(f"Error loading court keypoints: {e}")
-    
-    def _parse_court_keypoints(self, keypoints_str: str) -> List[Tuple]:
-        """Parse court keypoints from CSV string format"""
-        try:
-            if not keypoints_str or keypoints_str == '':
-                return []
-            
-            # Parse the keypoints string (format: "x1,y1|x2,y2|...")
-            keypoints = []
-            points = keypoints_str.split('|')
-            for point in points:
-                if ',' in point:
-                    x, y = point.split(',')
-                    try:
-                        x_val = float(x) if x != 'nan' and x != '' else None
-                        y_val = float(y) if y != 'nan' and y != '' else None
-                        keypoints.append((x_val, y_val))
-                    except ValueError:
-                        keypoints.append((None, None))
-                else:
-                    keypoints.append((None, None))
-            
-            return keypoints
-        except Exception as e:
-            logger.warning(f"Error parsing court keypoints: {e}")
-            return []
     
     def _print_summary(self):
         """Print bounce detection summary"""
