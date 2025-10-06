@@ -80,8 +80,17 @@ class BounceMLTrainer:
         try:
             df = pd.read_csv(ball_data_file)
             
-            # Validate required columns
-            required_cols = ['ball_x', 'ball_y', 'frame']
+            # Validate required columns (check for both possible column names)
+            if 'ball_x' in df.columns and 'ball_y' in df.columns:
+                # Use ball_x, ball_y format
+                required_cols = ['ball_x', 'ball_y', 'frame']
+            elif 'x' in df.columns and 'y' in df.columns:
+                # Use x, y format and rename for consistency
+                df = df.rename(columns={'x': 'ball_x', 'y': 'ball_y'})
+                required_cols = ['ball_x', 'ball_y', 'frame']
+            else:
+                raise ValueError("Missing required columns: need either ['ball_x', 'ball_y', 'frame'] or ['x', 'y', 'frame']")
+            
             missing_cols = [col for col in required_cols if col not in df.columns]
             if missing_cols:
                 raise ValueError(f"Missing required columns: {missing_cols}")
@@ -125,7 +134,7 @@ class BounceMLTrainer:
         return np.array(features_list), np.array(labels_list)
     
     def _extract_features_at_frame(self, ball_df: pd.DataFrame, frame_number: int) -> Optional[np.ndarray]:
-        """Extract trajectory features at a specific frame"""
+        """Extract trajectory features at a specific frame with quality filtering"""
         try:
             # Get window of frames around the target frame
             window_start = frame_number - self.window_size // 2
@@ -137,11 +146,35 @@ class BounceMLTrainer:
                 (ball_df['frame'] <= window_end)
             ].sort_values('frame')
             
-            if len(window_data) < self.window_size * 0.7:  # Need at least 70% of window
+            # Quality check 1: Need at least 80% of window with valid data
+            valid_data = window_data.dropna(subset=['ball_x', 'ball_y'])
+            if len(valid_data) < self.window_size * 0.8:
                 return None
             
+            # Quality check 2: Need consecutive frames (no large gaps)
+            frames = valid_data['frame'].values
+            frame_gaps = np.diff(frames)
+            max_gap = np.max(frame_gaps) if len(frame_gaps) > 0 else 0
+            if max_gap > 3:  # Allow max 3 frame gap
+                return None
+            
+            # Quality check 3: Need reasonable ball coordinates (not all zeros)
+            if np.all(valid_data['ball_x'] == 0) and np.all(valid_data['ball_y'] == 0):
+                return None
+            
+            # Quality check 4: Need some movement (not stationary)
+            if len(valid_data) >= 3:
+                x_range = np.max(valid_data['ball_x']) - np.min(valid_data['ball_x'])
+                y_range = np.max(valid_data['ball_y']) - np.min(valid_data['ball_y'])
+                if x_range < 5 and y_range < 5:  # Ball moved less than 5 pixels
+                    return None
+            
             # Extract trajectory features
-            features = self._compute_trajectory_features(window_data)
+            features = self._compute_trajectory_features(valid_data)
+            
+            # Quality check 5: Validate extracted features
+            if features is None or np.any(np.isnan(features)) or np.any(np.isinf(features)):
+                return None
             
             return features
             
@@ -149,141 +182,201 @@ class BounceMLTrainer:
             logger.warning(f"Error extracting features at frame {frame_number}: {e}")
             return None
     
-    def _compute_trajectory_features(self, window_data: pd.DataFrame) -> np.ndarray:
-        """Compute trajectory features from window data"""
-        features = []
-        
-        # Get x, y coordinates
-        x_coords = window_data['ball_x'].values
-        y_coords = window_data['ball_y'].values
-        
-        # Ensure we have enough data
-        if len(x_coords) < 3:
-            # Pad with zeros if insufficient data
-            x_coords = np.pad(x_coords, (0, max(0, 3 - len(x_coords))), 'constant')
-            y_coords = np.pad(y_coords, (0, max(0, 3 - len(y_coords))), 'constant')
-        
-        # 1. Position features (normalized coordinates)
-        features.extend([
-            np.mean(x_coords),
-            np.mean(y_coords),
-            np.std(x_coords),
-            np.std(y_coords)
-        ])
-        
-        # 2. Velocity features
-        if len(x_coords) >= 2:
-            x_velocities = np.diff(x_coords)
-            y_velocities = np.diff(y_coords)
+    def _compute_trajectory_features(self, window_data: pd.DataFrame) -> Optional[np.ndarray]:
+        """Compute trajectory features from window data with robust handling"""
+        try:
+            features = []
             
+            # Get x, y coordinates (already validated by caller)
+            x_coords = window_data['ball_x'].values
+            y_coords = window_data['ball_y'].values
+            
+            # Ensure we have valid numeric data
+            if len(x_coords) < 3 or np.any(np.isnan(x_coords)) or np.any(np.isnan(y_coords)):
+                return None
+            
+            # 1. Position features (normalized coordinates)
             features.extend([
-                np.mean(x_velocities),
-                np.mean(y_velocities),
-                np.std(x_velocities),
-                np.std(y_velocities)
+                np.mean(x_coords),
+                np.mean(y_coords),
+                np.std(x_coords) if len(x_coords) > 1 else 0.0,
+                np.std(y_coords) if len(y_coords) > 1 else 0.0
             ])
-        else:
-            features.extend([0, 0, 0, 0])
-        
-        # 3. Acceleration features
-        if len(x_coords) >= 3:
-            x_accelerations = np.diff(x_velocities)
-            y_accelerations = np.diff(y_velocities)
             
-            features.extend([
-                np.mean(x_accelerations),
-                np.mean(y_accelerations),
-                np.std(x_accelerations),
-                np.std(y_accelerations)
-            ])
-        else:
-            features.extend([0, 0, 0, 0])
-        
-        # 4. Trajectory shape features
-        features.extend(self._compute_trajectory_shape_features(x_coords, y_coords))
-        
-        # 5. Bounce-specific features
-        features.extend(self._compute_bounce_specific_features(x_coords, y_coords))
-        
-        return np.array(features)
-    
-    def _compute_trajectory_shape_features(self, x_coords: np.ndarray, y_coords: np.ndarray) -> List[float]:
-        """Compute trajectory shape features"""
-        features = []
-        
-        if len(x_coords) >= 3:
-            # Total trajectory length
-            total_length = np.sum(np.sqrt(np.diff(x_coords)**2 + np.diff(y_coords)**2))
-            features.append(total_length)
-            
-            # Straight-line distance
-            straight_distance = np.sqrt((x_coords[-1] - x_coords[0])**2 + (y_coords[-1] - y_coords[0])**2)
-            features.append(straight_distance)
-            
-            # Curvature (how much the trajectory curves)
-            if total_length > 0:
-                curvature = straight_distance / total_length
-                features.append(curvature)
-            else:
-                features.append(0)
-            
-            # Direction change (total angle change)
-            total_angle_change = 0
-            for i in range(1, len(x_coords)-1):
-                dx1 = x_coords[i] - x_coords[i-1]
-                dy1 = y_coords[i] - y_coords[i-1]
-                dx2 = x_coords[i+1] - x_coords[i]
-                dy2 = y_coords[i+1] - y_coords[i]
+            # 2. Velocity features
+            if len(x_coords) >= 2:
+                x_velocities = np.diff(x_coords)
+                y_velocities = np.diff(y_coords)
                 
-                if abs(dx1) > 0.1 or abs(dy1) > 0.1:
-                    angle1 = np.arctan2(dy1, dx1)
-                    angle2 = np.arctan2(dy2, dx2)
-                    angle_change = abs(angle2 - angle1)
-                    if angle_change > np.pi:
-                        angle_change = 2*np.pi - angle_change
-                    total_angle_change += angle_change
+                # Check for valid velocities
+                if np.any(np.isnan(x_velocities)) or np.any(np.isnan(y_velocities)):
+                    return None
+                
+                features.extend([
+                    np.mean(x_velocities),
+                    np.mean(y_velocities),
+                    np.std(x_velocities) if len(x_velocities) > 1 else 0.0,
+                    np.std(y_velocities) if len(y_velocities) > 1 else 0.0
+                ])
+            else:
+                features.extend([0, 0, 0, 0])
             
-            features.append(total_angle_change)
-        else:
-            features.extend([0, 0, 0, 0])
-        
-        return features
+            # 3. Acceleration features
+            if len(x_coords) >= 3:
+                x_velocities = np.diff(x_coords)
+                y_velocities = np.diff(y_coords)
+                x_accelerations = np.diff(x_velocities)
+                y_accelerations = np.diff(y_velocities)
+                
+                # Check for valid accelerations
+                if len(x_accelerations) == 0 or np.any(np.isnan(x_accelerations)) or np.any(np.isnan(y_accelerations)):
+                    features.extend([0, 0, 0, 0])
+                else:
+                    features.extend([
+                        np.mean(x_accelerations),
+                        np.mean(y_accelerations),
+                        np.std(x_accelerations) if len(x_accelerations) > 1 else 0.0,
+                        np.std(y_accelerations) if len(y_accelerations) > 1 else 0.0
+                    ])
+            else:
+                features.extend([0, 0, 0, 0])
+            
+            # 4. Trajectory shape features
+            shape_features = self._compute_trajectory_shape_features(x_coords, y_coords)
+            if shape_features is None:
+                return None
+            features.extend(shape_features)
+            
+            # 5. Bounce-specific features
+            bounce_features = self._compute_bounce_specific_features(x_coords, y_coords)
+            if bounce_features is None:
+                return None
+            features.extend(bounce_features)
+            
+            # Final validation
+            features_array = np.array(features)
+            if np.any(np.isnan(features_array)) or np.any(np.isinf(features_array)):
+                return None
+            
+            return features_array
+            
+        except Exception as e:
+            logger.warning(f"Error computing trajectory features: {e}")
+            return None
     
-    def _compute_bounce_specific_features(self, x_coords: np.ndarray, y_coords: np.ndarray) -> List[float]:
+    def _compute_trajectory_shape_features(self, x_coords: np.ndarray, y_coords: np.ndarray) -> Optional[List[float]]:
+        """Compute trajectory shape features"""
+        try:
+            features = []
+            
+            if len(x_coords) >= 3:
+                # Total trajectory length
+                total_length = np.sum(np.sqrt(np.diff(x_coords)**2 + np.diff(y_coords)**2))
+                features.append(total_length)
+                
+                # Straight-line distance
+                straight_distance = np.sqrt((x_coords[-1] - x_coords[0])**2 + (y_coords[-1] - y_coords[0])**2)
+                features.append(straight_distance)
+                
+                # Curvature (how much the trajectory curves)
+                if total_length > 0:
+                    curvature = straight_distance / total_length
+                    features.append(curvature)
+                else:
+                    features.append(0)
+                
+                # Direction change (total angle change)
+                total_angle_change = 0
+                for i in range(1, len(x_coords)-1):
+                    dx1 = x_coords[i] - x_coords[i-1]
+                    dy1 = y_coords[i] - y_coords[i-1]
+                    dx2 = x_coords[i+1] - x_coords[i]
+                    dy2 = y_coords[i+1] - y_coords[i]
+                    
+                    if abs(dx1) > 0.1 or abs(dy1) > 0.1:
+                        angle1 = np.arctan2(dy1, dx1)
+                        angle2 = np.arctan2(dy2, dx2)
+                        angle_change = abs(angle2 - angle1)
+                        if angle_change > np.pi:
+                            angle_change = 2*np.pi - angle_change
+                        total_angle_change += angle_change
+                
+                features.append(total_angle_change)
+                
+                # Validate features
+                if np.any(np.isnan(features)) or np.any(np.isinf(features)):
+                    return None
+                    
+            else:
+                features.extend([0, 0, 0, 0])
+            
+            return features
+            
+        except Exception as e:
+            logger.warning(f"Error computing trajectory shape features: {e}")
+            return None
+    
+    def _compute_bounce_specific_features(self, x_coords: np.ndarray, y_coords: np.ndarray) -> Optional[List[float]]:
         """Compute features specific to bounce detection"""
-        features = []
-        
-        if len(y_coords) >= 3:
-            # Y-velocity reversal detection
-            y_velocities = np.diff(y_coords)
+        try:
+            features = []
             
-            # Count velocity reversals
-            reversals = 0
-            for i in range(1, len(y_velocities)):
-                if (y_velocities[i-1] < 0 and y_velocities[i] > 0) or \
-                   (y_velocities[i-1] > 0 and y_velocities[i] < 0):
-                    reversals += 1
+            if len(y_coords) >= 3:
+                # Y-velocity reversal detection
+                y_velocities = np.diff(y_coords)
+                
+                # Count velocity reversals
+                reversals = 0
+                for i in range(1, len(y_velocities)):
+                    if (y_velocities[i-1] < 0 and y_velocities[i] > 0) or \
+                       (y_velocities[i-1] > 0 and y_velocities[i] < 0):
+                        reversals += 1
+                
+                features.append(reversals)
+                
+                # Maximum velocity magnitude
+                max_velocity = np.max(np.abs(y_velocities))
+                features.append(max_velocity)
+                
+                # Y-position range (how much vertical movement)
+                y_range = np.max(y_coords) - np.min(y_coords)
+                features.append(y_range)
+                
+                # Y-velocity variance (how much velocity changes)
+                y_vel_variance = np.var(y_velocities)
+                features.append(y_vel_variance)
+                
+                # Validate features
+                if np.any(np.isnan(features)) or np.any(np.isinf(features)):
+                    return None
+                    
+            else:
+                features.extend([0, 0, 0, 0])
             
-            features.append(reversals)
+            return features
             
-            # Maximum velocity magnitude
-            max_velocity = np.max(np.abs(y_velocities))
-            features.append(max_velocity)
-            
-            # Y-position range (how much vertical movement)
-            y_range = np.max(y_coords) - np.min(y_coords)
-            features.append(y_range)
-            
-            # Y-velocity variance (how much velocity changes)
-            y_vel_variance = np.var(y_velocities)
-            features.append(y_vel_variance)
-        else:
-            features.extend([0, 0, 0, 0])
-        
-        return features
+        except Exception as e:
+            logger.warning(f"Error computing bounce-specific features: {e}")
+            return None
     
-    def save_training_data(self, features: np.ndarray, labels: np.ndarray, output_file: str):
-        """Save training data to file"""
+    def create_train_test_split(self, features: np.ndarray, labels: np.ndarray, test_size: float = 0.2, random_state: int = 42) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Create train/test split with stratified sampling"""
+        from sklearn.model_selection import train_test_split
+        
+        X_train, X_test, y_train, y_test = train_test_split(
+            features, labels, 
+            test_size=test_size, 
+            random_state=random_state, 
+            stratify=labels
+        )
+        
+        logger.info(f"Train set: {len(X_train)} samples ({np.sum(y_train)} bounces)")
+        logger.info(f"Test set: {len(X_test)} samples ({np.sum(y_test)} bounces)")
+        
+        return X_train, X_test, y_train, y_test
+    
+    def save_training_data(self, features: np.ndarray, labels: np.ndarray, output_file: str, create_split: bool = True):
+        """Save training data to file with optional train/test split"""
         try:
             # Create feature names
             feature_names = [
@@ -298,7 +391,7 @@ class BounceMLTrainer:
             df = pd.DataFrame(features, columns=feature_names)
             df['is_bounce'] = labels
             
-            # Save to CSV
+            # Save full dataset
             df.to_csv(output_file, index=False)
             logger.info(f"Saved training data to {output_file}")
             
@@ -307,6 +400,24 @@ class BounceMLTrainer:
             with open(feature_names_file, 'w') as f:
                 json.dump(feature_names, f, indent=2)
             logger.info(f"Saved feature names to {feature_names_file}")
+            
+            # Create train/test split if requested
+            if create_split:
+                X_train, X_test, y_train, y_test = self.create_train_test_split(features, labels)
+                
+                # Save train set
+                train_file = output_file.replace('.csv', '_train.csv')
+                train_df = pd.DataFrame(X_train, columns=feature_names)
+                train_df['is_bounce'] = y_train
+                train_df.to_csv(train_file, index=False)
+                logger.info(f"Saved training set to {train_file}")
+                
+                # Save test set
+                test_file = output_file.replace('.csv', '_test.csv')
+                test_df = pd.DataFrame(X_test, columns=feature_names)
+                test_df['is_bounce'] = y_test
+                test_df.to_csv(test_file, index=False)
+                logger.info(f"Saved test set to {test_file}")
             
         except Exception as e:
             logger.error(f"Error saving training data: {e}")
