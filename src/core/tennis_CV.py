@@ -23,8 +23,10 @@ import os
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Add TennisCourtDetector to path for court detection
-sys.path.append('TennisCourtDetector')
+# Add external libraries to path
+PROJECT_ROOT = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(PROJECT_ROOT / "external" / "TennisCourtDetector"))
+sys.path.insert(0, str(PROJECT_ROOT / "external" / "rf-detr"))
 
 # Import from TennisCourtDetector
 try:
@@ -50,6 +52,8 @@ class TennisAnalysisDemo:
     """Super advanced integrated tennis analysis system with court detection"""
     
     def __init__(self, config_path: str = "config.yaml"):
+        # Set up paths relative to project root
+        self.csv_output_path = PROJECT_ROOT / "data" / "processed" / "csv" / "tennis_analysis_data.csv"
         """Initialize the super advanced tennis analysis system"""
         self.config = self._load_config(config_path)
         self.frame_count = 0
@@ -820,7 +824,7 @@ class TennisAnalysisDemo:
             # Write to CSV file with file locking to prevent corruption
             try:
                 import fcntl
-                with open('tennis_analysis_data.csv', 'a') as f:
+                with open(self.csv_output_path, 'a') as f:
                     # Acquire exclusive lock for writing
                     fcntl.flock(f.fileno(), fcntl.LOCK_EX)
                     f.write(','.join(csv_line) + '\n')
@@ -829,13 +833,13 @@ class TennisAnalysisDemo:
                     fcntl.flock(f.fileno(), fcntl.LOCK_UN)
             except ImportError:
                 # fcntl not available on Windows, use regular file operations
-                with open('tennis_analysis_data.csv', 'a') as f:
+                with open(self.csv_output_path, 'a') as f:
                     f.write(','.join(csv_line) + '\n')
                     f.flush()
             except Exception as e:
                 logger.error(f"File locking error: {e}")
                 # Fallback to regular file operations
-                with open('tennis_analysis_data.csv', 'a') as f:
+                with open(self.csv_output_path, 'a') as f:
                     f.write(','.join(csv_line) + '\n')
                     f.flush()
                 
@@ -853,9 +857,12 @@ class TennisAnalysisDemo:
             ]
             
             # Initialize CSV file with file locking to prevent conflicts
+            # Ensure the directory exists
+            self.csv_output_path.parent.mkdir(parents=True, exist_ok=True)
+            
             try:
                 import fcntl
-                with open('tennis_analysis_data.csv', 'w') as f:
+                with open(self.csv_output_path, 'w') as f:
                     # Acquire exclusive lock for writing
                     fcntl.flock(f.fileno(), fcntl.LOCK_EX)
                     f.write(','.join(headers) + '\n')
@@ -864,13 +871,13 @@ class TennisAnalysisDemo:
                     fcntl.flock(f.fileno(), fcntl.LOCK_UN)
             except ImportError:
                 # fcntl not available on Windows, use regular file operations
-                with open('tennis_analysis_data.csv', 'w') as f:
+                with open(self.csv_output_path, 'w') as f:
                     f.write(','.join(headers) + '\n')
                     f.flush()
             except Exception as e:
                 logger.error(f"File locking error during initialization: {e}")
                 # Fallback to regular file operations
-                with open('tennis_analysis_data.csv', 'w') as f:
+                with open(self.csv_output_path, 'w') as f:
                     f.write(','.join(headers) + '\n')
                     f.flush()
                 

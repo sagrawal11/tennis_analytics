@@ -13,7 +13,7 @@ if ! command -v python3 &> /dev/null; then
 fi
 
 # Check if required files exist
-required_files=("tennis_master.py" "tennis_CV.py" "tennis_analytics.py" "config.yaml")
+required_files=("src/core/tennis_master.py" "src/core/tennis_CV.py" "src/core/tennis_analytics.py" "config.yaml")
 for file in "${required_files[@]}"; do
     if [ ! -f "$file" ]; then
         echo "❌ Required file not found: $file"
@@ -21,10 +21,10 @@ for file in "${required_files[@]}"; do
     fi
 done
 
-# Find available video files
-video_files=($(ls *.mp4 2>/dev/null))
+# Find available video files in data/raw/
+video_files=($(ls data/raw/*.mp4 2>/dev/null | xargs -n 1 basename 2>/dev/null))
 if [ ${#video_files[@]} -eq 0 ]; then
-    echo "❌ No MP4 video files found in current directory"
+    echo "❌ No MP4 video files found in data/raw/ directory"
     exit 1
 fi
 
@@ -51,7 +51,7 @@ echo "🚀 Launching dual-viewer system..."
 echo ""
 
 # Run the master controller
-python3 tennis_master.py --video "$selected_video"
+python3 src/core/tennis_master.py --video "data/raw/$selected_video"
 
 echo ""
 echo "🎾 Tennis analysis completed"

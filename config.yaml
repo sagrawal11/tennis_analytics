@@ -2,20 +2,20 @@
 
 # Model Paths
 models:
-  yolo_player: "models/playersnball4.pt"  # Your custom YOLOv8 model for players and ball
-  yolo_pose: "models/yolov8n-pose.pt"  # Pose estimation model
-  tracknet: "pretrained_ball_detection.pt"  # Ball tracking model (trained)
-  yolo_ball: "models/playersnball4.pt"  # YOLO model for ball detection
-  court_detector: "model_tennis_court_det.pt"  # Court detection model
-  bounce_detector: "models/bounce_detector.cbm"  # Bounce detection model
-  rfdetr_model: "models/playersnball5.pt"  # RF-DETR enhanced model for players and ball
+  yolo_player: "models/player/playersnball4.pt"  # Your custom YOLOv8 model for players and ball
+  yolo_pose: "models/pose/yolov8n-pose.pt"  # Pose estimation model
+  tracknet: "models/ball/pretrained_ball_detection.pt"  # Ball tracking model (trained)
+  yolo_ball: "models/player/playersnball4.pt"  # YOLO model for ball detection
+  court_detector: "models/court/model_tennis_court_det.pt"  # Court detection model
+  bounce_detector: "models/bounce/bounce_detector.cbm"  # Bounce detection model
+  rfdetr_model: "models/player/playersnball5.pt"  # RF-DETR enhanced model for players and ball
 
 # Data Paths
 data:
-  raw_videos: "data/raw_videos/"
-  processed_frames: "data/processed_frames/"
+  raw_videos: "data/raw/"
+  processed_frames: "data/processed/"
   annotations: "data/annotations/"
-  output: "data/output/"
+  output: "outputs/"
 
 # YOLOv8 Player Detection Settings
 yolo_player:
@@ -97,4 +97,4 @@ output:
   format: "json"
 
 # Pose estimation model
-pose_model_path: "models/yolov8x-pose.pt"
+pose_model_path: "models/pose/yolov8x-pose.pt"

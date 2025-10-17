@@ -48,11 +48,14 @@ class TennisMasterController:
     
     def _verify_files(self):
         """Verify that all required files exist"""
+        # Get the project root directory (two levels up from this file)
+        project_root = Path(__file__).parent.parent.parent
+        
         required_files = [
             self.video_path,
-            self.config_path,
-            "tennis_CV.py",
-            "tennis_analytics.py"
+            project_root / self.config_path,
+            project_root / "src" / "core" / "tennis_CV.py",
+            project_root / "src" / "core" / "tennis_analytics.py"
         ]
         
         for file_path in required_files:
@@ -78,11 +81,16 @@ class TennisMasterController:
     def start_cv_viewer(self):
         """Start the CV viewer process"""
         try:
+            # Get the project root and path to tennis_CV.py
+            project_root = Path(__file__).parent.parent.parent
+            cv_script = project_root / "src" / "core" / "tennis_CV.py"
+            output_path = project_root / "outputs" / "videos" / "tennis_analysis_output.mp4"
+            
             cmd = [
-                sys.executable, "tennis_CV.py",
+                sys.executable, str(cv_script),
                 "--video", self.video_path,
-                "--config", self.config_path,
-                "--output", "tennis_analysis_output.mp4"
+                "--config", str(project_root / self.config_path),
+                "--output", str(output_path)
             ]
             
             logger.info("🚀 Starting CV viewer...")
@@ -93,13 +101,13 @@ class TennisMasterController:
             env['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
             
             # Add additional environment variables for better subprocess compatibility
-            env['PYTHONPATH'] = os.getcwd() + ':' + env.get('PYTHONPATH', '')
+            env['PYTHONPATH'] = str(project_root) + ':' + env.get('PYTHONPATH', '')
             env['CUDA_VISIBLE_DEVICES'] = ''  # Force CPU usage if CUDA is available
             
             logger.info(f"🔧 Environment variables:")
             logger.info(f"   PYTORCH_ENABLE_MPS_FALLBACK: {env.get('PYTORCH_ENABLE_MPS_FALLBACK')}")
             logger.info(f"   PYTHONPATH: {env.get('PYTHONPATH')}")
-            logger.info(f"   Working directory: {os.getcwd()}")
+            logger.info(f"   Working directory: {str(project_root)}")
             
             # Run CV process without capturing output to avoid subprocess issues
             # This allows OpenCV windows and user input to work properly
@@ -108,7 +116,7 @@ class TennisMasterController:
                 stdout=None,  # Don't capture stdout - let it display normally
                 stderr=None,  # Don't capture stderr - let it display normally
                 env=env,
-                cwd=os.getcwd()  # Ensure working directory is correct
+                cwd=str(project_root)  # Ensure working directory is correct
             )
             
             logger.info(f"✅ CV viewer started (PID: {self.cv_process.pid})")
@@ -121,10 +129,16 @@ class TennisMasterController:
     def start_analytics_viewer(self):
         """Start the analytics viewer process"""
         try:
+            # Get the project root and path to tennis_analytics.py
+            project_root = Path(__file__).parent.parent.parent
+            analytics_script = project_root / "src" / "core" / "tennis_analytics.py"
+            csv_path = project_root / "data" / "processed" / "csv" / "tennis_analysis_data.csv"
+            output_path = project_root / "outputs" / "videos" / "tennis_analytics_output.mp4"
+            
             cmd = [
-                sys.executable, "tennis_analytics.py",
-                "--csv", "tennis_analysis_data.csv",
-                "--output", "tennis_analytics_output.mp4"
+                sys.executable, str(analytics_script),
+                "--csv", str(csv_path),
+                "--output", str(output_path)
             ]
             
             logger.info("📊 Starting analytics viewer...")
@@ -199,10 +213,12 @@ class TennisMasterController:
     def _get_csv_line_count(self):
         """Get the current number of lines in the CSV file with file locking"""
         try:
-            if Path('tennis_analysis_data.csv').exists():
+            project_root = Path(__file__).parent.parent.parent
+            csv_path = project_root / "data" / "processed" / "csv" / "tennis_analysis_data.csv"
+            if csv_path.exists():
                 try:
                     import fcntl
-                    with open('tennis_analysis_data.csv', 'r') as f:
+                    with open(csv_path, 'r') as f:
                         # Acquire shared lock for reading
                         fcntl.flock(f.fileno(), fcntl.LOCK_SH)
                         lines = f.readlines()
@@ -211,12 +227,12 @@ class TennisMasterController:
                         return len(lines)
                 except ImportError:
                     # fcntl not available on Windows, use regular file operations
-                    with open('tennis_analysis_data.csv', 'r') as f:
+                    with open(csv_path, 'r') as f:
                         return len(f.readlines())
                 except Exception as e:
                     logger.warning(f"File locking error: {e}")
                     # Fallback to regular file operations
-                    with open('tennis_analysis_data.csv', 'r') as f:
+                    with open(csv_path, 'r') as f:
                         return len(f.readlines())
             return 0
         except Exception as e:
@@ -290,9 +306,11 @@ class TennisMasterController:
                 logger.info(f"✅ CV processing completed with exit code: {exit_code}")
                 
                 # Now safely read the final CSV to show results
-                if Path('tennis_analysis_data.csv').exists():
+                project_root = Path(__file__).parent.parent.parent
+                csv_path = project_root / "data" / "processed" / "csv" / "tennis_analysis_data.csv"
+                if csv_path.exists():
                     try:
-                        with open('tennis_analysis_data.csv', 'r') as f:
+                        with open(csv_path, 'r') as f:
                             lines = f.readlines()
                             if len(lines) > 1:
                                 logger.info(f"📊 Final CSV results: {len(lines)-1} frames processed successfully!")
@@ -308,7 +326,9 @@ class TennisMasterController:
                 logger.info(f"✅ CV processing completed with exit code: {exit_code}")
             
             # Check if CSV file was created
-            if not Path('tennis_analysis_data.csv').exists():
+            project_root = Path(__file__).parent.parent.parent
+            csv_path = project_root / "data" / "processed" / "csv" / "tennis_analysis_data.csv"
+            if not csv_path.exists():
                 logger.error("❌ CSV file not found. CV processing may have failed.")
                 return False
             

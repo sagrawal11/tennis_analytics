@@ -637,7 +637,7 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(description="Tennis Analytics Viewer")
-    parser.add_argument("--csv", type=str, default="tennis_analysis_data.csv", 
+    parser.add_argument("--csv", type=str, default="data/processed/csv/tennis_analysis_data.csv", 
                        help="Path to CSV data file")
     parser.add_argument("--width", type=int, default=1280, help="Window width")
     parser.add_argument("--height", type=int, default=720, help="Window height")
