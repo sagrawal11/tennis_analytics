@@ -4,6 +4,9 @@
 /env/
 /.venv/
 /tennis_env/
+/backend/venv/
+/frontend/node_modules/
+/SAM_body_venv/
 
 # Python
 __pycache__/
@@ -38,6 +41,8 @@ MANIFEST
 *.pb
 *.pkl
 *.joblib
+*.safetensors
+*.cbm
 
 # Data files
 *.mp4
@@ -59,13 +64,26 @@ MANIFEST
 # Output and results
 data/
 output/
+outputs/
 results/
 logs/
 *.log
-*.json
+# Keep JSON config files, ignore data JSON
 *.csv
 *.xlsx
 *.xls
+
+# Frontend build outputs
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/dist/
+frontend/.next/
+
+# Test videos (large files)
+tests/*.mov
+tests/*.mp4
+tests/*.avi
 
 # IDE and editor files
 .vscode/

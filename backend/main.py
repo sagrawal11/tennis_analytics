@@ -21,6 +21,15 @@ app.add_middleware(
 )
 
 
+# Include routers
+from api import teams, matches, videos, stats
+
+app.include_router(teams.router)
+app.include_router(matches.router)
+app.include_router(videos.router)
+app.include_router(stats.router)
+
+
 @app.get("/")
 async def root():
     return {"message": "Tennis Analytics API", "status": "running"}
