@@ -127,6 +127,14 @@ checkpoints/
 runs/
 tensorboard_logs/
 
+# SAM-3d-body specific (large files)
+SAM-3d-body/checkpoints/
+SAM-3d-body/SAM_body_venv/
+SAM-3d-body/outputs/
+SAM-3d-body/*.mp4
+SAM-3d-body/*.ckpt
+SAM-3d-body/sam-3d-body/.git
+
 # OS generated files
 .DS_Store
 .DS_Store?
