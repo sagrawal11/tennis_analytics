@@ -24,6 +24,7 @@ supabase: Client = create_client(supabase_url, supabase_key)
 class MatchCreate(BaseModel):
     playsight_link: str
     player_name: Optional[str] = None
+    user_id: Optional[str] = None  # For coaches uploading matches for players
 
 
 @router.get("/")
@@ -95,9 +96,43 @@ async def get_match(match_id: str, user_id: str = Depends(get_user_id)):
 
 @router.post("/")
 async def create_match(match_data: MatchCreate, user_id: str = Depends(get_user_id)):
-    """Create a new match."""
+    """
+    Create a new match.
+    If user_id is provided and the authenticated user is a coach, use the provided user_id.
+    Otherwise, use the authenticated user's ID.
+    """
+    # Determine which user_id to use for the match
+    match_user_id = user_id
+    
+    # If user_id is provided in request, verify user is a coach and can upload for that player
+    if match_data.user_id:
+        # Get authenticated user's role
+        user_response = supabase.table("users").select("role").eq("id", user_id).single().execute()
+        
+        if not user_response.data:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        user_role = user_response.data.get("role")
+        
+        if user_role != "coach":
+            raise HTTPException(status_code=403, detail="Only coaches can upload matches for other players")
+        
+        # Verify the target player is on one of the coach's teams
+        # Get coach's teams
+        teams_response = supabase.table("team_members").select("team_id").eq("user_id", user_id).execute()
+        team_ids = [t["team_id"] for t in (teams_response.data or [])]
+        
+        if team_ids:
+            # Check if target player is a member of any of these teams
+            members_response = supabase.table("team_members").select("team_id").eq("user_id", match_data.user_id).in_("team_id", team_ids).execute()
+            
+            if not members_response.data:
+                raise HTTPException(status_code=403, detail="Player must be a member of your team")
+        
+        match_user_id = match_data.user_id
+    
     match_response = supabase.table("matches").insert({
-        "user_id": user_id,
+        "user_id": match_user_id,
         "playsight_link": match_data.playsight_link,
         "player_name": match_data.player_name,
         "status": "pending"

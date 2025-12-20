@@ -19,12 +19,20 @@ export default function LoginPage() {
     setError(null)
 
     if (isSignUp) {
-      const { error } = await signUp(email, password, name)
+      const { data, error } = await signUp(email, password, name)
       if (error) {
         setError(error.message)
       } else {
-        // Check email for confirmation link
-        alert('Please check your email to confirm your account!')
+        // Check if user is automatically signed in (email confirmations disabled)
+        // If session exists, user is already authenticated
+        if (data?.session) {
+          // Email confirmations are disabled - user is automatically signed in
+          router.push('/dashboard')
+          router.refresh()
+        } else {
+          // Email confirmations are enabled - user needs to confirm email
+          alert('Please check your email to confirm your account!')
+        }
       }
     } else {
       const { error } = await signIn(email, password)

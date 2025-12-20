@@ -9,7 +9,7 @@ export function useAuth() {
   const router = useRouter()
   const supabase = createClient()
 
-  const signUp = async (email: string, password: string, name?: string) => {
+  const signUp = async (email: string, password: string, name?: string, role?: 'coach' | 'player') => {
     try {
       setLoading(true)
       const { data, error } = await supabase.auth.signUp({
@@ -18,6 +18,7 @@ export function useAuth() {
         options: {
           data: {
             name: name || '',
+            role: role || 'player', // Pass role to metadata for database trigger
           },
         },
       })
@@ -26,6 +27,9 @@ export function useAuth() {
 
       // User profile is automatically created by database trigger
       // No need to manually insert here
+      
+      // If session exists, email confirmations are disabled and user is auto-signed in
+      // If no session, email confirmations are enabled and user needs to confirm email
 
       return { data, error: null }
     } catch (error: any) {

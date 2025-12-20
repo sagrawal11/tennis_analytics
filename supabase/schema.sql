@@ -183,13 +183,17 @@ CREATE POLICY "Users can view their own matches"
 CREATE POLICY "Coaches can view all team member matches"
     ON public.matches FOR SELECT
     USING (
+        -- Check if the viewing user is a coach
         EXISTS (
+            SELECT 1 FROM public.users
+            WHERE id = auth.uid() AND role = 'coach'
+        )
+        -- AND the match owner is on the same team as the coach
+        AND EXISTS (
             SELECT 1 FROM public.team_members tm1
             JOIN public.team_members tm2 ON tm1.team_id = tm2.team_id
-            JOIN public.users u ON u.id = tm2.user_id
-            WHERE tm1.user_id = auth.uid()
-            AND u.role = 'coach'
-            AND tm2.user_id = matches.user_id
+            WHERE tm1.user_id = auth.uid()  -- Coach viewing
+            AND tm2.user_id = matches.user_id  -- Match owner
         )
     );
 
@@ -208,13 +212,19 @@ CREATE POLICY "Users can view match data for their matches"
         match_id IN (
             SELECT id FROM public.matches
             WHERE user_id = auth.uid()
-            OR EXISTS (
-                SELECT 1 FROM public.team_members tm1
-                JOIN public.team_members tm2 ON tm1.team_id = tm2.team_id
-                JOIN public.users u ON u.id = tm2.user_id
-                WHERE tm1.user_id = auth.uid()
-                AND u.role = 'coach'
-                AND tm2.user_id = (SELECT user_id FROM public.matches WHERE id = match_data.match_id)
+            OR (
+                -- Coach can view if match owner is on their team
+                EXISTS (
+                    SELECT 1 FROM public.users
+                    WHERE id = auth.uid() AND role = 'coach'
+                )
+                AND EXISTS (
+                    SELECT 1 FROM public.team_members tm1
+                    JOIN public.team_members tm2 ON tm1.team_id = tm2.team_id
+                    JOIN public.matches m ON m.user_id = tm2.user_id
+                    WHERE tm1.user_id = auth.uid()
+                    AND m.id = match_data.match_id
+                )
             )
         )
     );
@@ -226,13 +236,19 @@ CREATE POLICY "Users can view shots for their matches"
         match_id IN (
             SELECT id FROM public.matches
             WHERE user_id = auth.uid()
-            OR EXISTS (
-                SELECT 1 FROM public.team_members tm1
-                JOIN public.team_members tm2 ON tm1.team_id = tm2.team_id
-                JOIN public.users u ON u.id = tm2.user_id
-                WHERE tm1.user_id = auth.uid()
-                AND u.role = 'coach'
-                AND tm2.user_id = (SELECT user_id FROM public.matches WHERE id = shots.match_id)
+            OR (
+                -- Coach can view if match owner is on their team
+                EXISTS (
+                    SELECT 1 FROM public.users
+                    WHERE id = auth.uid() AND role = 'coach'
+                )
+                AND EXISTS (
+                    SELECT 1 FROM public.team_members tm1
+                    JOIN public.team_members tm2 ON tm1.team_id = tm2.team_id
+                    JOIN public.matches m ON m.user_id = tm2.user_id
+                    WHERE tm1.user_id = auth.uid()
+                    AND m.id = shots.match_id
+                )
             )
         )
     );
@@ -285,7 +301,7 @@ BEGIN
     NEW.id,
     NEW.email,
     COALESCE(NEW.raw_user_meta_data->>'name', ''),
-    'player' -- Default role
+    COALESCE(NEW.raw_user_meta_data->>'role', 'player') -- Use role from metadata, default to 'player'
   );
   RETURN NEW;
 END;

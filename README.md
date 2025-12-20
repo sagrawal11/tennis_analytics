@@ -115,6 +115,23 @@ This lets you sign up and immediately sign in without checking email. The databa
 
 ### Step 7: Run Development Servers
 
+**Option A: Using Helper Scripts (Easiest)**
+
+**Terminal 1 - Frontend:**
+```bash
+./start_frontend.sh
+```
+Frontend will be available at http://localhost:3000
+
+**Terminal 2 - Backend:**
+```bash
+./start_backend.sh
+```
+Backend API will be available at http://localhost:8000  
+API docs at http://localhost:8000/docs
+
+**Option B: Manual Commands**
+
 **Terminal 1 - Frontend:**
 ```bash
 cd frontend
