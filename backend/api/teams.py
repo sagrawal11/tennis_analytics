@@ -334,3 +334,42 @@ async def unarchive_team(team_id: str, user_id: str = Depends(get_user_id)):
         raise HTTPException(status_code=500, detail="Failed to unarchive team")
     
     return {"message": "Team unarchived successfully. Players can rejoin using the team code.", "team": update_response.data[0]}
+
+
+@router.patch("/{team_id}/delete")
+async def delete_team(team_id: str, user_id: str = Depends(get_user_id)):
+    """
+    Delete a team. Only coaches who are members can delete it.
+    - Sets team status to 'deleted'
+    - Removes ALL members (players AND coaches) from the team
+    - Team is completely hidden from all users but data is preserved in database
+    """
+    # Verify user is a coach and a member of the team
+    membership = supabase.table("team_members").select("role").eq("team_id", team_id).eq("user_id", user_id).execute()
+    
+    if not membership.data:
+        raise HTTPException(status_code=403, detail="Not a member of this team")
+    
+    if membership.data[0].get("role") != "coach":
+        raise HTTPException(status_code=403, detail="Only coaches can delete teams")
+    
+    # Check if team is already deleted
+    team_response = supabase.table("teams").select("status").eq("id", team_id).single().execute()
+    if not team_response.data:
+        raise HTTPException(status_code=404, detail="Team not found")
+    
+    if team_response.data.get("status") == "deleted":
+        raise HTTPException(status_code=400, detail="Team is already deleted")
+    
+    # Update team status to deleted
+    update_response = supabase.table("teams").update({
+        "status": "deleted"
+    }).eq("id", team_id).execute()
+    
+    if not update_response.data:
+        raise HTTPException(status_code=500, detail="Failed to delete team")
+    
+    # Remove ALL members from the team (both players and coaches)
+    supabase.table("team_members").delete().eq("team_id", team_id).execute()
+    
+    return {"message": "Team deleted successfully. All members have been removed. Data is preserved in the database.", "team": update_response.data[0]}
