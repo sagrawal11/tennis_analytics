@@ -42,7 +42,7 @@ export function Sidebar() {
       {/* Header with Logo */}
       <div className="h-16 flex items-center px-4 border-b border-[#333333]">
         <Link href="/dashboard" className="flex items-center gap-3 hover:opacity-90 transition-opacity">
-          <Image src="/logo.svg" alt="Courtvision Logo" width={40} height={40} className="w-10 h-10" />
+          <Image src="/CourtVisionLogo.png" alt="Courtvision Logo" width={40} height={40} className="w-10 h-10" />
           <span className="text-lg font-bold text-white">Courtvision</span>
         </Link>
       </div>

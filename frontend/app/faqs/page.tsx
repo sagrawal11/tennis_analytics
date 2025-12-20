@@ -39,7 +39,7 @@ export default function FAQsPage() {
                 </div>
                 <div>
                   <h3 className="text-lg font-medium text-[#50C878] mb-2">How do I join a team?</h3>
-                  <p className="text-white">Ask your coach for your team code, then go to the Teams page and enter the code to join.</p>
+                  <p className="text-white">Ask your coach for your team code, then go to the Teams page and enter the code to join. Note: As a player, you&apos;ll only be able to upload videos once your team has an activated coach.</p>
                 </div>
                 <div>
                   <h3 className="text-lg font-medium text-[#50C878] mb-2">How do I upload a match?</h3>
@@ -67,15 +67,27 @@ export default function FAQsPage() {
             </section>
 
             <section className="bg-[#1a1a1a] rounded-xl p-8 border border-[#333333]">
-              <h2 className="text-2xl font-semibold text-white mb-4">Account & Billing</h2>
+              <h2 className="text-2xl font-semibold text-white mb-4">Account & Activation</h2>
               <div className="space-y-4">
                 <div>
-                  <h3 className="text-lg font-medium text-[#50C878] mb-2">How do I change my password?</h3>
-                  <p className="text-white">Go to your profile page and use the password reset option. You'll receive an email with instructions.</p>
+                  <h3 className="text-lg font-medium text-[#50C878] mb-2">What is an activation key?</h3>
+                  <p className="text-white">Activation keys are provided to coaches after payment. Coaches need to enter their activation key to unlock all features, including the ability to create teams and upload matches.</p>
                 </div>
                 <div>
-                  <h3 className="text-lg font-medium text-[#50C878] mb-2">Can I cancel my subscription?</h3>
-                  <p className="text-white">Yes, you can manage your subscription from your profile page at any time.</p>
+                  <h3 className="text-lg font-medium text-[#50C878] mb-2">Do I need an activation key as a coach?</h3>
+                  <p className="text-white">Yes, coaches need an activation key to create teams. However, if another coach has already created a team and activated their account, you can join that team and your account will be automatically activated.</p>
+                </div>
+                <div>
+                  <h3 className="text-lg font-medium text-[#50C878] mb-2">Why can&apos;t I upload videos as a player?</h3>
+                  <p className="text-white">Players can only upload videos if they&apos;ve joined a team that has an activated coach. If your coach hasn&apos;t activated their account yet, ask them to enter their activation key or contact us for assistance.</p>
+                </div>
+                <div>
+                  <h3 className="text-lg font-medium text-[#50C878] mb-2">What happens if I join a team with an activated coach?</h3>
+                  <p className="text-white">If you&apos;re a coach and join a team that already has an activated coach, your account will be automatically activated. This allows multiple coaches to work together without each needing their own activation key.</p>
+                </div>
+                <div>
+                  <h3 className="text-lg font-medium text-[#50C878] mb-2">How do I change my password?</h3>
+                  <p className="text-white">Go to your profile page and use the password reset option. You&apos;ll receive an email with instructions.</p>
                 </div>
               </div>
             </section>

@@ -2,11 +2,13 @@
 
 import { useState, useEffect } from "react"
 import { MainLayout } from "@/components/layout/main-layout"
+import { ActivationKeyInput } from "@/components/activation/activation-key-input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { useMatches } from "@/hooks/useMatches"
 import { useProfile } from "@/hooks/useProfile"
 import { useTeams } from "@/hooks/useTeams"
+import { useActivation } from "@/hooks/useActivation"
 import { createClient } from "@/lib/supabase/client"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts"
 
@@ -16,6 +18,7 @@ export default function StatsPage() {
   const { data: matches, isLoading } = useMatches()
   const { profile } = useProfile()
   const { teams } = useTeams()
+  const { isActivated } = useActivation()
   const supabase = createClient()
   const [selectedPlayerId, setSelectedPlayerId] = useState<string>("")
   const [teamMembers, setTeamMembers] = useState<any[]>([])
@@ -97,7 +100,7 @@ export default function StatsPage() {
       <div className="mx-auto px-4 py-8 max-w-7xl">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold text-white">Statistics</h1>
-          {isCoach && teamMembers.length > 0 && (
+          {isCoach && isActivated && teamMembers.length > 0 && (
             <div className="flex items-center gap-2">
               <Label htmlFor="playerSelect" className="text-gray-400 text-sm">
                 Select Player:
@@ -118,7 +121,23 @@ export default function StatsPage() {
           )}
         </div>
 
-        {isLoading ? (
+        {/* Activation Key Input for Coaches */}
+        {isCoach && !isActivated && (
+          <div className="mb-8">
+            <ActivationKeyInput />
+          </div>
+        )}
+
+        {/* Locked State for Coaches */}
+        {isCoach && !isActivated ? (
+          <div className="bg-[#1a1a1a] rounded-lg border border-[#333333] p-12 text-center shadow-xl opacity-50 pointer-events-none">
+            <h2 className="text-xl font-semibold text-white mb-2">Account Activation Required</h2>
+            <p className="text-gray-400 mb-4">Please enter your activation key above to unlock all features.</p>
+            <p className="text-sm text-gray-500">Contact us if you need an activation key.</p>
+          </div>
+        ) : (
+          <>
+            {isLoading ? (
           <p className="text-gray-400">Loading statistics...</p>
         ) : totalMatches === 0 ? (
           <div className="bg-[#1a1a1a] rounded-lg border border-[#333333] p-12 text-center shadow-xl">
@@ -197,6 +216,8 @@ export default function StatsPage() {
                 </ResponsiveContainer>
               </div>
             </div>
+          </>
+            )}
           </>
         )}
       </div>

@@ -3,11 +3,13 @@
 import { useState, useEffect } from "react"
 import { MainLayout } from "@/components/layout/main-layout"
 import { MatchCard } from "@/components/dashboard/match-card"
+import { ActivationKeyInput } from "@/components/activation/activation-key-input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { useMatches } from "@/hooks/useMatches"
 import { useProfile } from "@/hooks/useProfile"
 import { useTeams } from "@/hooks/useTeams"
+import { useActivation } from "@/hooks/useActivation"
 import { createClient } from "@/lib/supabase/client"
 import type { Match } from "@/lib/types"
 
@@ -15,6 +17,7 @@ export default function DashboardPage() {
   const { data: matches, isLoading, error } = useMatches()
   const { profile } = useProfile()
   const { teams } = useTeams()
+  const { isActivated } = useActivation()
   const supabase = createClient()
   const [expandedDate, setExpandedDate] = useState<string | null>(null)
   const [selectedPlayerId, setSelectedPlayerId] = useState<string>("all")
@@ -93,7 +96,7 @@ export default function DashboardPage() {
       <div className="mx-auto px-4 py-8 max-w-7xl">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold text-white">Dashboard</h1>
-          {isCoach && teamMembers.length > 0 && (
+          {isCoach && isActivated && teamMembers.length > 0 && (
             <div className="flex items-center gap-2">
               <Label htmlFor="playerFilter" className="text-gray-400 text-sm">
                 Filter by Player:
@@ -117,7 +120,26 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {isLoading && <div className="text-center text-gray-400 py-12">Loading matches...</div>}
+        {/* Activation Key Input for Coaches */}
+        {isCoach && !isActivated && (
+          <div className="mb-8">
+            <ActivationKeyInput />
+          </div>
+        )}
+
+        {/* Locked State for Coaches */}
+        {isCoach && !isActivated && (
+          <div className="bg-[#1a1a1a] rounded-lg border border-[#333333] p-12 text-center shadow-xl opacity-50 pointer-events-none">
+            <h2 className="text-xl font-semibold text-white mb-2">Account Activation Required</h2>
+            <p className="text-gray-400 mb-4">Please enter your activation key above to unlock all features.</p>
+            <p className="text-sm text-gray-500">Contact us if you need an activation key.</p>
+          </div>
+        )}
+
+        {/* Regular Dashboard Content (only shown if coach is activated or player) */}
+        {(!isCoach || isActivated) && (
+          <>
+            {isLoading && <div className="text-center text-gray-400 py-12">Loading matches...</div>}
 
         {error && (
           <div className="bg-red-900/20 border-2 border-red-800 rounded-lg p-4">
@@ -164,6 +186,8 @@ export default function DashboardPage() {
               )
             })}
           </div>
+        )}
+          </>
         )}
       </div>
     </MainLayout>

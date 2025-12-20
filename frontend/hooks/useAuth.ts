@@ -3,11 +3,13 @@
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 
 export function useAuth() {
   const [loading, setLoading] = useState(false)
   const router = useRouter()
   const supabase = createClient()
+  const queryClient = useQueryClient()
 
   const signUp = async (email: string, password: string, name?: string, role?: 'coach' | 'player') => {
     try {
@@ -56,6 +58,9 @@ export function useAuth() {
 
       if (error) throw error
 
+      // Clear all cached queries to ensure fresh data for the new user
+      queryClient.clear()
+      
       router.refresh()
       return { data, error: null }
     } catch (error: any) {
@@ -70,6 +75,9 @@ export function useAuth() {
       setLoading(true)
       const { error } = await supabase.auth.signOut()
       if (error) throw error
+
+      // Clear all cached queries to prevent showing previous user's data
+      queryClient.clear()
 
       router.push('/')
       router.refresh()

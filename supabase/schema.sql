@@ -22,6 +22,8 @@ CREATE TABLE public.users (
     name TEXT,
     role TEXT CHECK (role IN ('coach', 'player')) NOT NULL DEFAULT 'player',
     team_id UUID REFERENCES public.teams(id),
+    activation_key TEXT,
+    activated_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL
 );
@@ -43,6 +45,9 @@ CREATE TABLE public.matches (
     player_name TEXT,
     playsight_link TEXT NOT NULL,
     video_url TEXT,
+    match_date DATE,
+    opponent TEXT,
+    notes TEXT,
     status TEXT CHECK (status IN ('pending', 'processing', 'completed', 'failed')) DEFAULT 'pending' NOT NULL,
     processed_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL,
@@ -83,6 +88,7 @@ CREATE TABLE public.player_identifications (
 
 -- Indexes for performance
 CREATE INDEX idx_users_team_id ON public.users(team_id);
+CREATE INDEX idx_users_activation_key ON public.users(activation_key);
 CREATE INDEX idx_team_members_team_id ON public.team_members(team_id);
 CREATE INDEX idx_team_members_user_id ON public.team_members(user_id);
 CREATE INDEX idx_matches_user_id ON public.matches(user_id);
@@ -324,3 +330,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- Comments for activation key columns
+COMMENT ON COLUMN public.users.activation_key IS 'Activation key for coaches to unlock platform access';
+COMMENT ON COLUMN public.users.activated_at IS 'Timestamp when activation key was validated';

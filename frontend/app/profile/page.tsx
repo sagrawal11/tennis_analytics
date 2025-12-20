@@ -5,6 +5,8 @@ import { useProfile } from "@/hooks/useProfile"
 import { useTeams } from "@/hooks/useTeams"
 import { useAuth } from "@/hooks/useAuth"
 import { useEffect, useState } from "react"
+import { Button } from "@/components/ui/button"
+import { Trash2, Archive, Edit, LogOut } from "lucide-react"
 
 export default function ProfilePage() {
   const { profile, isLoading } = useProfile()
@@ -58,13 +60,60 @@ export default function ProfilePage() {
                 {teams.length === 0 ? (
                   <p className="text-sm text-gray-500 italic">Not part of any teams yet.</p>
                 ) : (
-                  <div className="space-y-2">
-                    {teams.map((team) => (
-                      <div key={team.id} className="bg-black/50 rounded border border-[#333333] p-3">
-                        <p className="font-medium text-white">{team.name}</p>
-                        <p className="text-xs text-gray-400 font-mono">{team.code}</p>
-                      </div>
-                    ))}
+                  <div className="space-y-3">
+                    {teams.map((team) => {
+                      const isCoach = profile?.role === "coach"
+                      return (
+                        <div key={team.id} className="bg-black/50 rounded border border-[#333333] p-4">
+                          <div className="flex justify-between items-start mb-3">
+                            <div>
+                              <p className="font-medium text-white">{team.name}</p>
+                              <p className="text-xs text-gray-400 font-mono mt-1">{team.code}</p>
+                            </div>
+                          </div>
+                          
+                          {isCoach ? (
+                            <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-[#333333]">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="border-[#333333] text-gray-300 hover:border-[#50C878] hover:text-[#50C878] hover:bg-transparent bg-transparent"
+                              >
+                                <Edit className="h-4 w-4 mr-2" />
+                                Rename
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="border-[#333333] text-gray-300 hover:border-yellow-600 hover:text-yellow-500 hover:bg-transparent bg-transparent"
+                              >
+                                <Archive className="h-4 w-4 mr-2" />
+                                Archive
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="border-red-800 text-red-400 hover:bg-red-600 hover:text-black hover:border-red-600 bg-transparent"
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-[#333333]">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="border-red-800 text-red-400 hover:bg-red-600 hover:text-black hover:border-red-600 bg-transparent"
+                              >
+                                <LogOut className="h-4 w-4 mr-2" />
+                                Leave Team
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
               </div>

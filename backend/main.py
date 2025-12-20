@@ -22,12 +22,13 @@ app.add_middleware(
 
 
 # Include routers
-from api import teams, matches, videos, stats
+from api import teams, matches, videos, stats, activation
 
 app.include_router(teams.router)
 app.include_router(matches.router)
 app.include_router(videos.router)
 app.include_router(stats.router)
+app.include_router(activation.router)
 
 
 @app.get("/")

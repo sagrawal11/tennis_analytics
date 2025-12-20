@@ -8,6 +8,9 @@ export function useTeams() {
   const { getUser } = useAuth()
   const supabase = createClient()
   const queryClient = useQueryClient()
+  
+  // Note: AbortSignal.timeout might not be available in all browsers
+  // Fallback to manual timeout if needed
 
   const { data: teams, isLoading } = useQuery({
     queryKey: ['my-teams'],
@@ -68,24 +71,54 @@ export function useTeams() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) throw new Error('Not authenticated')
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/teams/join`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ code }),
-      })
-
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.detail || 'Failed to join team')
+      let response: Response
+      try {
+        response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/teams/join`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ code }),
+        })
+      } catch (networkError: any) {
+        // Network error (CORS, connection refused, timeout, etc.)
+        console.error('Network error joining team:', networkError)
+        
+        // If it's an AbortError (timeout), the request might have still succeeded
+        if (networkError.name === 'AbortError' || networkError.name === 'TimeoutError') {
+          // Request might have succeeded - invalidate queries to check
+          queryClient.invalidateQueries({ queryKey: ['my-teams'] })
+          throw new Error('Request timed out. Please refresh the page to check if you joined successfully.')
+        }
+        
+        throw new Error('Network error: Could not connect to server. Please check your connection and try again.')
       }
 
-      return response.json()
+      // Try to parse response, but handle errors gracefully
+      let data: any
+      try {
+        data = await response.json()
+      } catch (parseError) {
+        // Response is not JSON - might be empty or error
+        if (!response.ok) {
+          throw new Error(`Server error: ${response.status} ${response.statusText}`)
+        }
+        // Response is ok but not JSON - assume success
+        return { message: 'Successfully joined team', team: null }
+      }
+
+      if (!response.ok) {
+        throw new Error(data.detail || data.message || `Failed to join team: ${response.status}`)
+      }
+
+      return data
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-teams'] })
+      queryClient.invalidateQueries({ queryKey: ['team-activation-status'] })
+      queryClient.invalidateQueries({ queryKey: ['activation-status'] })
+      queryClient.invalidateQueries({ queryKey: ['profile'] })
     },
   })
 

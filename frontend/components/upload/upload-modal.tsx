@@ -8,11 +8,12 @@ import { X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useAuth } from "@/hooks/useAuth"
 import { useProfile } from "@/hooks/useProfile"
 import { useTeams } from "@/hooks/useTeams"
-import { useTeamMembers } from "@/hooks/useTeamMembers"
+import { useActivation } from "@/hooks/useActivation"
 import { createClient } from "@/lib/supabase/client"
 
 interface UploadModalProps {
@@ -21,25 +22,50 @@ interface UploadModalProps {
 }
 
 export function UploadModal({ isOpen, onClose }: UploadModalProps) {
+  // ALL HOOKS MUST BE CALLED FIRST - BEFORE ANY CONDITIONAL RETURNS
   const router = useRouter()
   const { getUser } = useAuth()
   const { profile } = useProfile()
   const { teams } = useTeams()
+  const { isActivated } = useActivation()
   const supabase = createClient()
 
   const [playsightLink, setPlaysightLink] = useState("")
   const [playerName, setPlayerName] = useState("")
   const [selectedPlayerId, setSelectedPlayerId] = useState<string>("")
+  const [matchDate, setMatchDate] = useState("")
+  const [opponent, setOpponent] = useState("")
+  const [notes, setNotes] = useState("")
   const [teamMembers, setTeamMembers] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const isCoach = profile?.role === "coach"
+  
+  // Block upload if coach is not activated
+  useEffect(() => {
+    if (isCoach && !isActivated && isOpen) {
+      onClose() // Close modal if coach tries to open it without activation
+    }
+  }, [isCoach, isActivated, isOpen, onClose])
+
+  // Reset form when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setPlaysightLink("")
+      setPlayerName("")
+      setSelectedPlayerId("")
+      setMatchDate("")
+      setOpponent("")
+      setNotes("")
+      setError(null)
+    }
+  }, [isOpen])
 
   // Fetch team members when coach selects a team
   useEffect(() => {
     const fetchTeamMembers = async () => {
-      if (!isCoach || teams.length === 0) {
+      if (!isCoach || teams.length === 0 || !isOpen) {
         setTeamMembers([])
         return
       }
@@ -59,15 +85,21 @@ export function UploadModal({ isOpen, onClose }: UploadModalProps) {
 
           if (response.ok) {
             const data = await response.json()
-            const members = (data.members || []).filter((m: any) => m.users?.role === 'player')
+            // Backend returns { members: [...] }
+            const membersList = data.members || []
+            const members = membersList.filter((m: any) => m.users?.role === 'player')
             allMembers.push(...members.map((m: any) => ({
               id: m.users?.id,
               name: m.users?.name || m.users?.email || 'Unknown',
               email: m.users?.email,
             })))
+          } else {
+            // Non-200 response - log but don't fail completely
+            console.warn(`Failed to fetch members for team ${team.id}:`, response.status)
           }
         } catch (err) {
           console.error('Error fetching team members:', err)
+          // Continue with other teams even if one fails
         }
       }
 
@@ -78,10 +110,18 @@ export function UploadModal({ isOpen, onClose }: UploadModalProps) {
       setTeamMembers(uniqueMembers)
     }
 
-    fetchTeamMembers()
-  }, [isCoach, teams, supabase])
+    if (isOpen && isCoach && teams.length > 0) {
+      fetchTeamMembers()
+    }
+  }, [isCoach, teams, isOpen, supabase])
 
+  // NOW we can have conditional returns - AFTER all hooks
   if (!isOpen) return null
+  
+  // Don't render modal content if coach isn't activated
+  if (isCoach && !isActivated) {
+    return null
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -98,17 +138,24 @@ export function UploadModal({ isOpen, onClose }: UploadModalProps) {
       const user = await getUser()
       if (!user) {
         setError("Please sign in first")
+        setLoading(false)
         return
       }
 
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) {
         setError("Please sign in first")
+        setLoading(false)
         return
       }
 
       // Determine user_id: if coach selected a player, use that; otherwise use current user
       const matchUserId = (isCoach && selectedPlayerId) ? selectedPlayerId : user.id
+      
+      // For players, use their profile name; for coaches, use player_name if provided
+      const finalPlayerName = !isCoach 
+        ? (profile?.name || undefined)
+        : (playerName || undefined)
 
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/matches`, {
         method: 'POST',
@@ -118,22 +165,29 @@ export function UploadModal({ isOpen, onClose }: UploadModalProps) {
         },
         body: JSON.stringify({
           playsight_link: playsightLink,
-          player_name: playerName || undefined,
+          player_name: finalPlayerName,
           user_id: (isCoach && selectedPlayerId) ? selectedPlayerId : undefined,
+          match_date: matchDate || undefined,
+          opponent: opponent || undefined,
+          notes: notes || undefined,
         }),
       })
 
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.detail || 'Failed to create match')
+        throw new Error(data.detail || data.message || 'Failed to create match')
+      }
+
+      if (!data.match || !data.match.id) {
+        throw new Error('Invalid response from server')
       }
 
       onClose()
       router.push(`/matches/${data.match.id}/identify`)
     } catch (err: unknown) {
+      console.error('Upload error:', err)
       setError(err instanceof Error ? err.message : "Failed to upload video")
-    } finally {
       setLoading(false)
     }
   }
@@ -189,21 +243,46 @@ export function UploadModal({ isOpen, onClose }: UploadModalProps) {
             </div>
           )}
 
-          {!isCoach && (
-            <div>
-              <Label htmlFor="playerName" className="text-gray-400 text-sm font-medium">
-                Player Name (Optional)
-              </Label>
-              <Input
-                id="playerName"
-                type="text"
-                value={playerName}
-                onChange={(e) => setPlayerName(e.target.value)}
-                placeholder="Player name"
-                className="mt-1 bg-black/50 border-[#333333] text-white placeholder-gray-500 focus:border-[#50C878] focus:ring-[#50C878]"
-              />
-            </div>
-          )}
+          <div>
+            <Label htmlFor="matchDate" className="text-gray-400 text-sm font-medium">
+              Match Date
+            </Label>
+            <Input
+              id="matchDate"
+              type="date"
+              value={matchDate}
+              onChange={(e) => setMatchDate(e.target.value)}
+              className="mt-1 bg-black/50 border-[#333333] text-white placeholder-gray-500 focus:border-[#50C878] focus:ring-[#50C878]"
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="opponent" className="text-gray-400 text-sm font-medium">
+              Opponent
+            </Label>
+            <Input
+              id="opponent"
+              type="text"
+              value={opponent}
+              onChange={(e) => setOpponent(e.target.value)}
+              placeholder="Opponent name/school"
+              className="mt-1 bg-black/50 border-[#333333] text-white placeholder-gray-500 focus:border-[#50C878] focus:ring-[#50C878]"
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="notes" className="text-gray-400 text-sm font-medium">
+              Notes (Optional)
+            </Label>
+            <Textarea
+              id="notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Add any notes about this match..."
+              rows={3}
+              className="mt-1 bg-black/50 border-[#333333] text-white placeholder-gray-500 focus:border-[#50C878] focus:ring-[#50C878] resize-none"
+            />
+          </div>
 
           {error && (
             <div className="bg-red-900/20 border border-red-800 rounded-lg p-3">

@@ -1,6 +1,6 @@
-# Courtvision - AI-Powered Tennis Analytics
+# Courtvision - Computer Vision Powered Tennis Analytics
 
-A full-stack tennis analytics web application for coaches and players to track match performance, visualize shot patterns, and analyze statistics using computer vision.
+A full-stack tennis analytics web application for coaches and players to track match performance, visualize shot patterns, and analyze statistics using computer vision. Features team-based activation keys for easy access management.
 
 ## 🎾 Overview
 
@@ -9,12 +9,13 @@ Courtvision enables tennis coaches to manage teams, track player performance, an
 ### Key Features
 
 - **Role-Based Access**: Coaches and players with different permissions and views
+- **Activation Key System**: Team-based activation - one key activates entire team
 - **Team Management**: Coaches create teams with codes; players join via codes
 - **Match Upload**: Upload Playsight video links for processing
 - **Interactive Court Visualization**: Clickable shot patterns on a tennis court diagram
 - **Real-Time Processing**: Track video processing status with live updates
 - **Statistics Tracking**: Comprehensive stats for players and teams
-- **Modern UI**: Beautiful landing page, dark theme with emerald green accents
+- **Modern UI**: Beautiful landing page, dark theme with emerald green (#50C878) accents
 
 ---
 
@@ -82,6 +83,18 @@ Courtvision enables tennis coaches to manage teams, track player performance, an
 - ✅ Coaches can join existing teams (multi-coach support)
 - ✅ Players can only join teams
 - ✅ Team members list with role badges
+
+### Phase 3.5: Activation Key System
+- ✅ Activation key support in database schema
+- ✅ Coach activation via activation keys
+- ✅ Team-based activation sharing (one key activates entire team)
+- ✅ Auto-activation when joining activated teams
+- ✅ Activation key input component for coaches
+- ✅ Locked states for unactivated coaches (can't create teams or upload)
+- ✅ Locked states for players without activated teams (can't upload)
+- ✅ Backend API for activation (activate, status)
+- ✅ Create team locked modal for unactivated coaches
+- ✅ Locked upload modal for players without activated teams
 
 ### Phase 4: Match Management
 - ✅ Upload modal with Playsight link input
@@ -219,13 +232,55 @@ Courtvision enables tennis coaches to manage teams, track player performance, an
 3. **Verify Tables Created**
    - Go to **Table Editor** in the left sidebar
    - You should see these tables:
-     - ✅ `users` - User profiles (extends auth.users)
+     - ✅ `users` - User profiles (extends auth.users, includes activation_key and activated_at)
      - ✅ `teams` - Teams with unique codes
      - ✅ `team_members` - Junction table for team membership
      - ✅ `matches` - Match records
      - ✅ `match_data` - JSON data from CV processing
      - ✅ `shots` - Individual shot records
      - ✅ `player_identifications` - Player identification data
+
+### Step 3.5: Understanding Activation Keys
+
+**How Activation Works:**
+- Coaches need activation keys to create teams and upload matches
+- Players need to be on a team with an activated coach to upload matches
+- Activation keys are **team-based** - one key activates the entire team
+- When someone joins a team with an activated coach, they automatically get the same activation key
+
+**To Add Activation Keys Manually (for testing):**
+
+1. **Add Key to Purchasing Coach:**
+   ```sql
+   -- In Supabase SQL Editor
+   UPDATE public.users 
+   SET activation_key = 'ABC123'
+   WHERE email = 'coach-email@example.com' 
+     AND role = 'coach';
+   ```
+
+2. **Check Activation Status:**
+   ```sql
+   SELECT 
+     email, 
+     name, 
+     role, 
+     activation_key, 
+     activated_at,
+     CASE 
+       WHEN activated_at IS NOT NULL THEN 'Activated'
+       WHEN activation_key IS NOT NULL THEN 'Key Assigned (Not Activated)'
+       ELSE 'No Key Assigned'
+     END as status
+   FROM public.users 
+   WHERE role = 'coach'
+   ORDER BY created_at DESC;
+   ```
+
+**Activation Flow:**
+1. Admin adds `activation_key` to coach's user record (via SQL)
+2. Coach enters key in UI → Account activates
+3. Other coaches/players join team → Automatically get same key and activate
 
 ### Step 4: Configure Environment Variables
 
@@ -412,33 +467,63 @@ tennis_analytics/
    - Click "Sign in"
    - Redirect to `/dashboard`
 
+### Activation Flow
+
+1. **Coach Purchases & Gets Activation Key**
+   - Admin manually adds activation key to coach's user record in database
+   - Coach signs up or logs in
+   - Coach navigates to Teams page
+   - Coach sees activation key input at top
+   - Coach enters activation key
+   - Account activates → Can now create teams and upload matches
+
+2. **Coach Joins Activated Team (Alternative)**
+   - Coach signs up (no activation key needed initially)
+   - Coach navigates to Teams page (accessible even without activation)
+   - Coach enters team code from another activated coach
+   - Coach automatically gets same activation key and is activated
+   - Can now use all features
+
+3. **Player Joins Activated Team**
+   - Player signs up
+   - Player navigates to Teams page
+   - Player enters team code
+   - If team has activated coach → Player automatically gets activation key and is activated
+   - Player can now upload matches
+
 ### Team Management Flow
 
-1. **Coach Creates Team**
+1. **Coach Creates Team** (Requires Activation)
+   - Coach must be activated first (via activation key or joining activated team)
    - Go to `/teams`
    - Click "Create New Team"
    - Enter team name
    - See team code displayed
    - Team appears in "Your Teams" list
+   - If not activated → Modal explains need for activation
 
 2. **Player Joins Team**
    - Go to `/teams`
    - Enter team code from coach
    - Click "Join"
+   - If team has activated coach → Auto-activated with shared key
    - Team appears in "Your Teams" list
 
 3. **Coach Joins Existing Team**
-   - Go to `/teams`
+   - Go to `/teams` (accessible even without activation)
    - Enter team code from another coach
    - Click "Join"
+   - If team has activated coach → Auto-activated with shared key
    - Coach joins as coach role
    - Team appears in "Your Teams" list
 
 ### Match Upload Flow
 
-1. **Player Uploads Own Match**
-   - Click floating "+" button
-   - Modal opens
+1. **Player Uploads Own Match** (Requires Activated Team)
+   - Player must be on a team with an activated coach
+   - Click floating "+" button (locked if no activated team)
+   - If locked → Modal explains need to join activated team
+   - If unlocked → Modal opens
    - Enter Playsight link
    - Click "Upload"
    - Redirect to `/matches/[id]/identify`
@@ -446,9 +531,10 @@ tennis_analytics/
    - Submit identification
    - Match appears in dashboard
 
-2. **Coach Uploads Match for Player**
-   - Click floating "+" button
-   - Modal opens
+2. **Coach Uploads Match for Player** (Requires Activation)
+   - Coach must be activated
+   - Click floating "+" button (locked if not activated)
+   - If unlocked → Modal opens
    - **Select player** from dropdown (team members)
    - Enter Playsight link
    - Click "Upload"
@@ -497,6 +583,8 @@ tennis_analytics/
   - `email` (TEXT, unique)
   - `name` (TEXT)
   - `role` (TEXT: 'coach' or 'player')
+  - `activation_key` (TEXT, unique) - Activation key for coaches/players
+  - `activated_at` (TIMESTAMP) - When account was activated
   - `team_id` (UUID, nullable, references teams)
 
 - **`teams`** - Teams with unique codes
@@ -587,6 +675,17 @@ All tables have RLS enabled with policies that:
 - `POST /api/videos/identify-player` - Submit player identification
 - `GET /api/videos/{match_id}/status` - Get processing status
 
+### Activation
+
+- **`POST /api/activation/activate`** - Activate coach account with key
+  - Body: `{ "activation_key": "ABC123" }`
+  - Returns: `{ "message": "Account activated successfully", "activated": true }`
+  - Only coaches can activate
+  - Key must match the user's record in database
+
+- **`GET /api/activation/status`** - Get activation status
+  - Returns: `{ "is_activated": true/false, "role": "coach"/"player", "activated_at": timestamp }`
+
 ### Stats
 
 - `GET /api/stats/player/{player_id}` - Get player stats
@@ -610,24 +709,36 @@ All endpoints require authentication via Bearer token (Supabase JWT).
    - ✅ Sign in with both accounts
    - ✅ Verify role is saved correctly
 
-2. **Team Management**
-   - ✅ Coach creates team
+2. **Activation System**
+   - ✅ Add activation key to coach via SQL
+   - ✅ Coach enters key and activates account
+   - ✅ Coach can create teams after activation
+   - ✅ Coach can join activated team (auto-activation)
+   - ✅ Player joins activated team (auto-activation)
+   - ✅ Upload button locked for unactivated coaches
+   - ✅ Upload button locked for players without activated teams
+
+3. **Team Management**
+   - ✅ Coach creates team (requires activation)
    - ✅ Player joins team
    - ✅ Coach joins existing team
    - ✅ View team members (coaches and players)
 
-3. **Match Upload**
-   - ✅ Player uploads own match
-   - ✅ Coach uploads match for player
+4. **Match Upload**
+   - ✅ Player uploads own match (requires activated team)
+   - ✅ Coach uploads match for player (requires activation)
    - ✅ Match appears in both dashboards
+   - ✅ Upload button shows lock icon when locked
 
-4. **Dashboard**
+5. **Dashboard**
    - ✅ Player sees own matches
    - ✅ Coach sees all team matches
    - ✅ Coach can filter by player
+   - ✅ Activation key input shown for unactivated coaches
 
-5. **Navigation**
+6. **Navigation**
    - ✅ All pages accessible
+   - ✅ Teams page accessible even for unactivated coaches
    - ✅ Profile page shows correct info
    - ✅ Sign out works
 
@@ -685,6 +796,18 @@ Visit http://localhost:8000/docs for interactive API documentation (Swagger UI).
 - Check trigger function `handle_new_user()` is updated
 - Verify role is passed in signup metadata
 - Check browser console for "Signing up with role: coach/player" log
+
+**Activation key not working**
+- Verify activation key was added to user record: `SELECT activation_key FROM public.users WHERE email = 'coach@example.com';`
+- Check key matches exactly (case-insensitive, but stored as entered)
+- Verify `activated_at` is NULL before activation
+- Check backend logs for activation errors
+- Ensure coach is entering key in Teams page activation input
+
+**Can't create team / upload matches**
+- For coaches: Check if account is activated (`activated_at IS NOT NULL`)
+- For players: Check if team has activated coach (any coach on team with `activated_at IS NOT NULL`)
+- Check activation status via API: `GET /api/activation/status`
 
 ### Authentication Issues
 

@@ -85,17 +85,21 @@ async def join_team(join_data: TeamJoin, user_id: str = Depends(get_user_id)):
     """
     Join a team using a team code. Any authenticated user can join.
     Coaches join as coaches, players join as players.
+    If a user joins a team that has an activated coach, they automatically get
+    the same activation_key and are activated.
     """
-    # Get user's role
-    user_response = supabase.table("users").select("role").eq("id", user_id).single().execute()
+    # Get user's role and activation status
+    user_response = supabase.table("users").select("role, activated_at").eq("id", user_id).single().execute()
     
     if not user_response.data:
         raise HTTPException(status_code=404, detail="User not found")
     
     user_role = user_response.data.get("role", "player")
+    is_user_activated = user_response.data.get("activated_at") is not None
     
-    # Look up team by code
-    team_response = supabase.table("teams").select("*").eq("code", join_data.code).single().execute()
+    # Look up team by code (case-insensitive, trimmed)
+    code_upper = join_data.code.strip().upper()
+    team_response = supabase.table("teams").select("*").eq("code", code_upper).single().execute()
     
     if not team_response.data:
         raise HTTPException(status_code=404, detail="Invalid team code")
@@ -113,13 +117,57 @@ async def join_team(join_data: TeamJoin, user_id: str = Depends(get_user_id)):
     member_response = supabase.table("team_members").insert({
         "team_id": team_id,
         "user_id": user_id,
-        "role": user_role  # Use user's actual role (coach or player)
+        "role": user_role
     }).execute()
     
     if not member_response.data:
         raise HTTPException(status_code=500, detail="Failed to join team")
     
-    return {"message": "Successfully joined team", "team": team}
+    # Check if team has an activated coach (for auto-activation and key sharing)
+    auto_activated = False
+    
+    if not is_user_activated:
+        # Get all team members who are coaches (now including the newly joined coach)
+        coaches_response = supabase.table("team_members").select("user_id").eq("team_id", team_id).eq("role", "coach").execute()
+        coach_ids = [c["user_id"] for c in (coaches_response.data or [])]
+        
+        if coach_ids:
+            # Check if any of these coaches (excluding the joining user) are activated
+            other_coach_ids = [cid for cid in coach_ids if cid != user_id]
+            if other_coach_ids:
+                # Get activated coaches with their activation keys
+                activated_coaches = supabase.table("users").select("id, activation_key, activated_at").eq("role", "coach").in_("id", other_coach_ids).not_.is_("activated_at", "null").execute()
+                
+                if activated_coaches.data and len(activated_coaches.data) > 0:
+                    # Team has an activated coach - get their activation key
+                    activated_coach = activated_coaches.data[0]
+                    shared_activation_key = activated_coach.get("activation_key")
+                    
+                    # Only update if we have a valid activation key
+                    if shared_activation_key:
+                        # Share the activation key and activate the joining user (coach or player)
+                        update_data = {
+                            "activation_key": shared_activation_key,
+                            "activated_at": "now()"
+                        }
+                        
+                        # Execute the update
+                        supabase.table("users").update(update_data).eq("id", user_id).execute()
+                        
+                        # Verify by fetching the updated user
+                        verify_response = supabase.table("users").select("id, activation_key, activated_at").eq("id", user_id).single().execute()
+                        
+                        if verify_response.data:
+                            updated_user = verify_response.data
+                            # Verify that activation_key and activated_at were actually set
+                            if updated_user.get("activation_key") == shared_activation_key and updated_user.get("activated_at"):
+                                auto_activated = True
+    
+    response_data = {"message": "Successfully joined team", "team": team}
+    if auto_activated:
+        response_data["auto_activated"] = True
+    
+    return response_data
 
 
 @router.get("/my-teams")

@@ -5,14 +5,19 @@ import { MainLayout } from "@/components/layout/main-layout"
 import { CreateTeam } from "@/components/team/create-team"
 import { TeamCode } from "@/components/team/team-code"
 import { TeamMembers } from "@/components/team/team-members"
+import { ActivationKeyInput } from "@/components/activation/activation-key-input"
+import { CreateTeamLockedModal } from "@/components/team/create-team-locked-modal"
 import { useTeams } from "@/hooks/useTeams"
 import { useProfile } from "@/hooks/useProfile"
+import { useActivation } from "@/hooks/useActivation"
 import { Button } from "@/components/ui/button"
 
 export default function TeamsPage() {
   const { teams, isLoading } = useTeams()
   const { profile } = useProfile()
+  const { isActivated } = useActivation()
   const [showCreate, setShowCreate] = useState(false)
+  const [showLockedModal, setShowLockedModal] = useState(false)
 
   const isCoach = profile?.role === "coach"
 
@@ -23,7 +28,14 @@ export default function TeamsPage() {
 
         {isCoach ? (
           <div className="space-y-6">
-            {/* Create Team Section */}
+            {/* Activation Key Input for Coaches */}
+            {!isActivated && (
+              <div className="mb-6">
+                <ActivationKeyInput />
+              </div>
+            )}
+
+            {/* Create Team Section - Locked if not activated */}
             <div className="bg-[#1a1a1a] rounded-lg border border-[#333333] p-6 shadow-xl">
               <h2 className="text-xl font-semibold text-white mb-4">Create Team</h2>
 
@@ -36,7 +48,13 @@ export default function TeamsPage() {
 
               {!showCreate ? (
                 <Button
-                  onClick={() => setShowCreate(true)}
+                  onClick={() => {
+                    if (!isActivated) {
+                      setShowLockedModal(true)
+                    } else {
+                      setShowCreate(true)
+                    }
+                  }}
                   className="bg-[#50C878] hover:bg-[#45b069] text-black font-semibold"
                 >
                   Create New Team
@@ -46,11 +64,11 @@ export default function TeamsPage() {
               )}
             </div>
 
-            {/* Join Team Section */}
+            {/* Join Team Section - Always available */}
             <div className="bg-[#1a1a1a] rounded-lg border border-[#333333] p-6 shadow-xl">
               <h2 className="text-xl font-semibold text-white mb-4">Join Team</h2>
               <p className="text-sm text-gray-400 mb-4">
-                Join an existing team if another coach created it.
+                Join an existing team if another coach created it. If the team has an activated coach, your account will be activated automatically.
               </p>
               <TeamCode />
             </div>
@@ -115,6 +133,7 @@ export default function TeamsPage() {
           </div>
         )}
       </div>
+      <CreateTeamLockedModal isOpen={showLockedModal} onClose={() => setShowLockedModal(false)} />
     </MainLayout>
   )
 }

@@ -9,7 +9,6 @@ import { ContactModal } from "@/components/landing/contact-modal"
 const footerLinks = {
   product: [
     { name: "How it Works", href: "/how-it-works" },
-    { name: "Pricing", href: "/pricing" },
     { name: "Demo", href: "#demo" },
   ],
   company: [
@@ -34,7 +33,7 @@ export function Footer() {
           {/* Brand */}
           <div>
             <Link href="/" className="flex items-center gap-3 mb-4">
-              <Image src="/logo.svg" alt="Courtvision Logo" width={40} height={40} className="w-10 h-10" />
+              <Image src="/CourtVisionLogo.png" alt="Courtvision Logo" width={40} height={40} className="w-10 h-10" />
               <span className="text-xl font-bold text-white">Courtvision</span>
             </Link>
             <p className="text-gray-400 text-sm">Computer Vision Powered Tennis Analytics</p>

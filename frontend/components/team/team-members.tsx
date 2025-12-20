@@ -1,6 +1,8 @@
 'use client'
 
 import { useTeamMembers } from '@/hooks/useTeamMembers'
+import { useAuth } from '@/hooks/useAuth'
+import { useEffect, useState } from 'react'
 
 interface TeamMembersProps {
   teamId: string
@@ -8,6 +10,16 @@ interface TeamMembersProps {
 
 export function TeamMembers({ teamId }: TeamMembersProps) {
   const { data: members, isLoading } = useTeamMembers(teamId)
+  const { getUser } = useAuth()
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchUserId = async () => {
+      const user = await getUser()
+      setCurrentUserId(user?.id || null)
+    }
+    fetchUserId()
+  }, [getUser])
 
   if (isLoading) {
     return <div className="text-sm text-gray-400">Loading members...</div>
@@ -27,19 +39,22 @@ export function TeamMembers({ teamId }: TeamMembersProps) {
         <div>
           <h5 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Coaches</h5>
           <div className="space-y-2">
-            {coaches.map((member: any) => (
-              <div key={member.id} className="flex items-center justify-between p-3 bg-black/50 rounded-lg border border-[#333333]">
-                <div className="flex items-center gap-3">
-                  <div>
-                    <p className="font-medium text-white">{member.users?.name || member.users?.email || 'Unknown'}</p>
-                    <p className="text-xs text-gray-500">{member.users?.email}</p>
+            {coaches.map((member: any) => {
+              const isCurrentUser = member.users?.id === currentUserId
+              return (
+                <div key={member.id} className={`flex items-center justify-between p-3 bg-black/50 rounded-lg border ${isCurrentUser ? 'border-[#50C878]' : 'border-[#333333]'}`}>
+                  <div className="flex items-center gap-3">
+                    <div>
+                      <p className="font-medium text-white">{member.users?.name || member.users?.email || 'Unknown'}</p>
+                      <p className="text-xs text-gray-500">{member.users?.email}</p>
+                    </div>
                   </div>
+                  <span className="bg-blue-900/30 text-blue-400 border border-blue-800 rounded px-2 py-1 text-xs font-medium">
+                    Coach
+                  </span>
                 </div>
-                <span className="bg-blue-900/30 text-blue-400 border border-blue-800 rounded px-2 py-1 text-xs font-medium">
-                  Coach
-                </span>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}
@@ -48,19 +63,22 @@ export function TeamMembers({ teamId }: TeamMembersProps) {
         <div>
           <h5 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Players</h5>
           <div className="space-y-2">
-            {players.map((member: any) => (
-              <div key={member.id} className="flex items-center justify-between p-3 bg-black/50 rounded-lg border border-[#333333]">
-                <div className="flex items-center gap-3">
-                  <div>
-                    <p className="font-medium text-white">{member.users?.name || member.users?.email || 'Unknown'}</p>
-                    <p className="text-xs text-gray-500">{member.users?.email}</p>
+            {players.map((member: any) => {
+              const isCurrentUser = member.users?.id === currentUserId
+              return (
+                <div key={member.id} className={`flex items-center justify-between p-3 bg-black/50 rounded-lg border ${isCurrentUser ? 'border-[#50C878]' : 'border-[#333333]'}`}>
+                  <div className="flex items-center gap-3">
+                    <div>
+                      <p className="font-medium text-white">{member.users?.name || member.users?.email || 'Unknown'}</p>
+                      <p className="text-xs text-gray-500">{member.users?.email}</p>
+                    </div>
                   </div>
+                  <span className="bg-emerald-900/30 text-emerald-400 border border-emerald-800 rounded px-2 py-1 text-xs font-medium">
+                    Player
+                  </span>
                 </div>
-                <span className="bg-emerald-900/30 text-emerald-400 border border-emerald-800 rounded px-2 py-1 text-xs font-medium">
-                  Player
-                </span>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}

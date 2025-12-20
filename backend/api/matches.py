@@ -25,6 +25,9 @@ class MatchCreate(BaseModel):
     playsight_link: str
     player_name: Optional[str] = None
     user_id: Optional[str] = None  # For coaches uploading matches for players
+    match_date: Optional[str] = None  # ISO date string (YYYY-MM-DD)
+    opponent: Optional[str] = None
+    notes: Optional[str] = None
 
 
 @router.get("/")
@@ -131,12 +134,22 @@ async def create_match(match_data: MatchCreate, user_id: str = Depends(get_user_
         
         match_user_id = match_data.user_id
     
-    match_response = supabase.table("matches").insert({
+    match_insert_data = {
         "user_id": match_user_id,
         "playsight_link": match_data.playsight_link,
         "player_name": match_data.player_name,
         "status": "pending"
-    }).execute()
+    }
+    
+    # Add optional fields if provided
+    if match_data.match_date:
+        match_insert_data["match_date"] = match_data.match_date
+    if match_data.opponent:
+        match_insert_data["opponent"] = match_data.opponent
+    if match_data.notes:
+        match_insert_data["notes"] = match_data.notes
+    
+    match_response = supabase.table("matches").insert(match_insert_data).execute()
     
     if not match_response.data:
         raise HTTPException(status_code=500, detail="Failed to create match")
