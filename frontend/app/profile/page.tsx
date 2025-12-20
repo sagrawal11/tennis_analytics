@@ -7,12 +7,16 @@ import { useAuth } from "@/hooks/useAuth"
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Trash2, Archive, Edit, LogOut } from "lucide-react"
+import { RenameTeamModal } from "@/components/team/rename-team-modal"
 
 export default function ProfilePage() {
   const { profile, isLoading } = useProfile()
   const { teams } = useTeams()
   const { getUser } = useAuth()
   const [email, setEmail] = useState<string | null>(null)
+  const [renameModalOpen, setRenameModalOpen] = useState(false)
+  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null)
+  const [selectedTeamName, setSelectedTeamName] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchEmail = async () => {
@@ -78,6 +82,11 @@ export default function ProfilePage() {
                                 variant="outline"
                                 size="sm"
                                 className="border-[#333333] text-gray-300 hover:border-[#50C878] hover:text-[#50C878] hover:bg-transparent bg-transparent"
+                                onClick={() => {
+                                  setSelectedTeamId(team.id)
+                                  setSelectedTeamName(team.name)
+                                  setRenameModalOpen(true)
+                                }}
                               >
                                 <Edit className="h-4 w-4 mr-2" />
                                 Rename
@@ -121,6 +130,19 @@ export default function ProfilePage() {
           )}
         </div>
       </div>
+
+      {selectedTeamId && selectedTeamName && (
+        <RenameTeamModal
+          isOpen={renameModalOpen}
+          onClose={() => {
+            setRenameModalOpen(false)
+            setSelectedTeamId(null)
+            setSelectedTeamName(null)
+          }}
+          teamId={selectedTeamId}
+          currentName={selectedTeamName}
+        />
+      )}
     </MainLayout>
   )
 }

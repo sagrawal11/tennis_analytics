@@ -200,3 +200,36 @@ async def get_team_members(team_id: str, user_id: str = Depends(get_user_id)):
     members_response = supabase.table("team_members").select("*, users(*)").eq("team_id", team_id).execute()
     
     return {"members": members_response.data or []}
+
+
+class TeamRename(BaseModel):
+    name: str
+
+
+@router.patch("/{team_id}/rename")
+async def rename_team(team_id: str, rename_data: TeamRename, user_id: str = Depends(get_user_id)):
+    """
+    Rename a team. Only coaches who are members of the team can rename it.
+    """
+    # Verify user is a coach and a member of the team
+    membership = supabase.table("team_members").select("role").eq("team_id", team_id).eq("user_id", user_id).execute()
+    
+    if not membership.data:
+        raise HTTPException(status_code=403, detail="Not a member of this team")
+    
+    if membership.data[0].get("role") != "coach":
+        raise HTTPException(status_code=403, detail="Only coaches can rename teams")
+    
+    # Validate new name
+    if not rename_data.name or not rename_data.name.strip():
+        raise HTTPException(status_code=400, detail="Team name cannot be empty")
+    
+    # Update team name
+    update_response = supabase.table("teams").update({
+        "name": rename_data.name.strip()
+    }).eq("id", team_id).execute()
+    
+    if not update_response.data:
+        raise HTTPException(status_code=500, detail="Failed to rename team")
+    
+    return {"message": "Team renamed successfully", "team": update_response.data[0]}
