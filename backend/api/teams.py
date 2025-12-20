@@ -373,3 +373,89 @@ async def delete_team(team_id: str, user_id: str = Depends(get_user_id)):
     supabase.table("team_members").delete().eq("team_id", team_id).execute()
     
     return {"message": "Team deleted successfully. All members have been removed. Data is preserved in the database.", "team": update_response.data[0]}
+
+
+@router.delete("/{team_id}/leave")
+async def leave_team(team_id: str, user_id: str = Depends(get_user_id)):
+    """
+    Leave a team. Players can leave teams they are members of.
+    - Removes the user from team_members
+    - User can rejoin later using the team code
+    """
+    # Verify user is a member of the team
+    membership = supabase.table("team_members").select("role").eq("team_id", team_id).eq("user_id", user_id).execute()
+    
+    if not membership.data:
+        raise HTTPException(status_code=403, detail="Not a member of this team")
+    
+    # Only players can leave teams (coaches should use delete/archive)
+    if membership.data[0].get("role") != "player":
+        raise HTTPException(status_code=403, detail="Coaches cannot leave teams. Use archive or delete instead.")
+    
+    # Check if team is deleted (can't leave a deleted team)
+    team_response = supabase.table("teams").select("status").eq("id", team_id).single().execute()
+    if not team_response.data:
+        raise HTTPException(status_code=404, detail="Team not found")
+    
+    if team_response.data.get("status") == "deleted":
+        raise HTTPException(status_code=400, detail="Cannot leave a deleted team")
+    
+    # Remove user from team_members
+    delete_response = supabase.table("team_members").delete().eq("team_id", team_id).eq("user_id", user_id).execute()
+    
+    if not delete_response.data:
+        raise HTTPException(status_code=500, detail="Failed to leave team")
+    
+    return {"message": "Successfully left the team. You can rejoin using the team code."}
+
+
+@router.delete("/{team_id}/members/{user_id}")
+async def remove_team_member(team_id: str, user_id: str, requester_id: str = Depends(get_user_id)):
+    """
+    Remove a member from a team. Only coaches who are members of the team can remove other members.
+    - Coaches can remove players
+    - Cannot remove other coaches
+    - Cannot remove yourself (use leave instead)
+    """
+    # Verify requester is a coach and a member of the team
+    requester_membership = supabase.table("team_members").select("role").eq("team_id", team_id).eq("user_id", requester_id).execute()
+    
+    if not requester_membership.data:
+        raise HTTPException(status_code=403, detail="Not a member of this team")
+    
+    if requester_membership.data[0].get("role") != "coach":
+        raise HTTPException(status_code=403, detail="Only coaches can remove team members")
+    
+    # Cannot remove yourself
+    if user_id == requester_id:
+        raise HTTPException(status_code=400, detail="Cannot remove yourself. Use leave team instead.")
+    
+    # Verify the user to be removed is a member
+    member_to_remove = supabase.table("team_members").select("role").eq("team_id", team_id).eq("user_id", user_id).execute()
+    
+    if not member_to_remove.data:
+        raise HTTPException(status_code=404, detail="User is not a member of this team")
+    
+    # Coaches cannot remove other coaches
+    if member_to_remove.data[0].get("role") == "coach":
+        raise HTTPException(status_code=403, detail="Cannot remove other coaches from the team")
+    
+    # Check if team is deleted
+    team_response = supabase.table("teams").select("status").eq("id", team_id).single().execute()
+    if not team_response.data:
+        raise HTTPException(status_code=404, detail="Team not found")
+    
+    if team_response.data.get("status") == "deleted":
+        raise HTTPException(status_code=400, detail="Cannot remove members from a deleted team")
+    
+    # Remove the member
+    delete_response = supabase.table("team_members").delete().eq("team_id", team_id).eq("user_id", user_id).execute()
+    
+    if not delete_response.data:
+        raise HTTPException(status_code=500, detail="Failed to remove team member")
+    
+    # Get the removed user's name for the response
+    user_response = supabase.table("users").select("name, email").eq("id", user_id).single().execute()
+    removed_user_name = user_response.data.get("name") if user_response.data else "User"
+    
+    return {"message": f"Successfully removed {removed_user_name} from the team."}

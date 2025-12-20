@@ -87,7 +87,7 @@ export default function TeamsPage() {
                     </div>
                     <div className="mt-4">
                       <h4 className="text-sm font-medium text-gray-400 mb-3">Team Members</h4>
-                      <TeamMembers teamId={team.id} />
+                      <TeamMembers teamId={team.id} teamName={team.name} />
                     </div>
                   </div>
                 ))}
@@ -124,7 +124,7 @@ export default function TeamsPage() {
                     </div>
                     <div className="mt-4">
                       <h4 className="text-sm font-medium text-gray-400 mb-3">Team Members</h4>
-                      <TeamMembers teamId={team.id} />
+                      <TeamMembers teamId={team.id} teamName={team.name} />
                     </div>
                   </div>
                 ))}

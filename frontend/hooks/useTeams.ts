@@ -236,6 +236,36 @@ export function useTeams() {
     },
   })
 
+  const leaveTeamMutation = useMutation({
+    mutationFn: async (teamId: string) => {
+      const user = await getUser()
+      if (!user) throw new Error('Not authenticated')
+
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) throw new Error('Not authenticated')
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/teams/${teamId}/leave`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.detail || 'Failed to leave team')
+      }
+
+      return response.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-teams'] })
+      queryClient.invalidateQueries({ queryKey: ['team-activation-status'] })
+      queryClient.invalidateQueries({ queryKey: ['activation-status'] })
+      queryClient.invalidateQueries({ queryKey: ['profile'] })
+    },
+  })
+
   return {
     teams: teams || [],
     archivedTeams: archivedTeams || [],
@@ -245,10 +275,12 @@ export function useTeams() {
     archiveTeam: archiveTeamMutation.mutateAsync,
     unarchiveTeam: unarchiveTeamMutation.mutateAsync,
     deleteTeam: deleteTeamMutation.mutateAsync,
+    leaveTeam: leaveTeamMutation.mutateAsync,
     isCreating: createTeamMutation.isPending,
     isJoining: joinTeamMutation.isPending,
     isArchiving: archiveTeamMutation.isPending,
     isUnarchiving: unarchiveTeamMutation.isPending,
     isDeleting: deleteTeamMutation.isPending,
+    isLeaving: leaveTeamMutation.isPending,
   }
 }

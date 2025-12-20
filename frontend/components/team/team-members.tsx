@@ -2,16 +2,27 @@
 
 import { useTeamMembers } from '@/hooks/useTeamMembers'
 import { useAuth } from '@/hooks/useAuth'
+import { useProfile } from '@/hooks/useProfile'
 import { useEffect, useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { X } from 'lucide-react'
+import { RemovePlayerModal } from './remove-player-modal'
 
 interface TeamMembersProps {
   teamId: string
+  teamName: string
 }
 
-export function TeamMembers({ teamId }: TeamMembersProps) {
-  const { data: members, isLoading } = useTeamMembers(teamId)
+export function TeamMembers({ teamId, teamName }: TeamMembersProps) {
+  const { data: members, isLoading, removeMember, isRemoving } = useTeamMembers(teamId)
   const { getUser } = useAuth()
+  const { profile } = useProfile()
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [removeModalOpen, setRemoveModalOpen] = useState(false)
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null)
+  const [selectedPlayerName, setSelectedPlayerName] = useState<string | null>(null)
+
+  const isCoach = profile?.role === 'coach'
 
   useEffect(() => {
     const fetchUserId = async () => {
@@ -65,22 +76,65 @@ export function TeamMembers({ teamId }: TeamMembersProps) {
           <div className="space-y-2">
             {players.map((member: any) => {
               const isCurrentUser = member.users?.id === currentUserId
+              const playerName = member.users?.name || member.users?.email || 'Unknown'
               return (
                 <div key={member.id} className={`flex items-center justify-between p-3 bg-black/50 rounded-lg border ${isCurrentUser ? 'border-[#50C878]' : 'border-[#333333]'}`}>
                   <div className="flex items-center gap-3">
                     <div>
-                      <p className="font-medium text-white">{member.users?.name || member.users?.email || 'Unknown'}</p>
+                      <p className="font-medium text-white">{playerName}</p>
                       <p className="text-xs text-gray-500">{member.users?.email}</p>
                     </div>
                   </div>
-                  <span className="bg-emerald-900/30 text-emerald-400 border border-emerald-800 rounded px-2 py-1 text-xs font-medium">
-                    Player
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="bg-emerald-900/30 text-emerald-400 border border-emerald-800 rounded px-2 py-1 text-xs font-medium">
+                      Player
+                    </span>
+                    {isCoach && !isCurrentUser && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-red-400 hover:text-red-300 hover:bg-red-900/20"
+                        onClick={() => {
+                          setSelectedPlayerId(member.users?.id)
+                          setSelectedPlayerName(playerName)
+                          setRemoveModalOpen(true)
+                        }}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
               )
             })}
           </div>
         </div>
+      )}
+
+      {selectedPlayerId && selectedPlayerName && (
+        <RemovePlayerModal
+          isOpen={removeModalOpen}
+          onClose={() => {
+            setRemoveModalOpen(false)
+            setSelectedPlayerId(null)
+            setSelectedPlayerName(null)
+          }}
+          onConfirm={async () => {
+            if (selectedPlayerId) {
+              try {
+                await removeMember(selectedPlayerId)
+                setRemoveModalOpen(false)
+                setSelectedPlayerId(null)
+                setSelectedPlayerName(null)
+              } catch (error) {
+                console.error('Failed to remove player:', error)
+              }
+            }
+          }}
+          playerName={selectedPlayerName}
+          teamName={teamName}
+          loading={isRemoving}
+        />
       )}
     </div>
   )

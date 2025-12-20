@@ -10,15 +10,17 @@ import { Trash2, Archive, Edit, LogOut } from "lucide-react"
 import { RenameTeamModal } from "@/components/team/rename-team-modal"
 import { ArchiveTeamModal } from "@/components/team/archive-team-modal"
 import { DeleteTeamModal } from "@/components/team/delete-team-modal"
+import { LeaveTeamModal } from "@/components/team/leave-team-modal"
 
 export default function ProfilePage() {
   const { profile, isLoading } = useProfile()
-  const { teams, archivedTeams, archiveTeam, unarchiveTeam, deleteTeam, isArchiving, isUnarchiving, isDeleting } = useTeams()
+  const { teams, archivedTeams, archiveTeam, unarchiveTeam, deleteTeam, leaveTeam, isArchiving, isUnarchiving, isDeleting, isLeaving } = useTeams()
   const { getUser } = useAuth()
   const [email, setEmail] = useState<string | null>(null)
   const [renameModalOpen, setRenameModalOpen] = useState(false)
   const [archiveModalOpen, setArchiveModalOpen] = useState(false)
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [leaveModalOpen, setLeaveModalOpen] = useState(false)
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null)
   const [selectedTeamName, setSelectedTeamName] = useState<string | null>(null)
 
@@ -128,6 +130,11 @@ export default function ProfilePage() {
                                 variant="outline"
                                 size="sm"
                                 className="border-red-800 text-red-400 hover:bg-red-600 hover:text-black hover:border-red-600 bg-transparent"
+                                onClick={() => {
+                                  setSelectedTeamId(team.id)
+                                  setSelectedTeamName(team.name)
+                                  setLeaveModalOpen(true)
+                                }}
                               >
                                 <LogOut className="h-4 w-4 mr-2" />
                                 Leave Team
@@ -251,6 +258,28 @@ export default function ProfilePage() {
             }}
             teamName={selectedTeamName}
             loading={isDeleting}
+          />
+          <LeaveTeamModal
+            isOpen={leaveModalOpen}
+            onClose={() => {
+              setLeaveModalOpen(false)
+              setSelectedTeamId(null)
+              setSelectedTeamName(null)
+            }}
+            onConfirm={async () => {
+              if (selectedTeamId) {
+                try {
+                  await leaveTeam(selectedTeamId)
+                  setLeaveModalOpen(false)
+                  setSelectedTeamId(null)
+                  setSelectedTeamName(null)
+                } catch (error) {
+                  console.error('Failed to leave team:', error)
+                }
+              }
+            }}
+            teamName={selectedTeamName}
+            loading={isLeaving}
           />
         </>
       )}
