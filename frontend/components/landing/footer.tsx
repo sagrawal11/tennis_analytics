@@ -1,27 +1,34 @@
+"use client"
+
+import { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
+import { VideoModal } from "@/components/landing/video-modal"
+import { ContactModal } from "@/components/landing/contact-modal"
 
 const footerLinks = {
   product: [
-    { name: "Features", href: "#features" },
-    { name: "Pricing", href: "#pricing" },
+    { name: "How it Works", href: "/how-it-works" },
+    { name: "Pricing", href: "/pricing" },
     { name: "Demo", href: "#demo" },
   ],
   company: [
-    { name: "About", href: "#about" },
-    { name: "Blog", href: "#blog" },
-    { name: "Careers", href: "#careers" },
+    { name: "About", href: "/about" },
   ],
   support: [
-    { name: "Help Center", href: "#help" },
+    { name: "FAQs", href: "/faqs" },
     { name: "Contact", href: "#contact" },
-    { name: "Privacy", href: "#privacy" },
+    { name: "Privacy", href: "/privacy" },
   ],
 }
 
 export function Footer() {
+  const [videoOpen, setVideoOpen] = useState(false)
+  const [contactOpen, setContactOpen] = useState(false)
+
   return (
-    <footer className="bg-[#0a0a0a] border-t border-[#333333]">
+    <>
+      <footer className="bg-[#0a0a0a] border-t border-[#333333]">
       <div className="max-w-7xl mx-auto px-4 py-12">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {/* Brand */}
@@ -30,7 +37,7 @@ export function Footer() {
               <Image src="/logo.svg" alt="Courtvision Logo" width={40} height={40} className="w-10 h-10" />
               <span className="text-xl font-bold text-white">Courtvision</span>
             </Link>
-            <p className="text-gray-400 text-sm">AI-Powered Tennis Analytics</p>
+            <p className="text-gray-400 text-sm">Computer Vision Powered Tennis Analytics</p>
           </div>
 
           {/* Product */}
@@ -39,9 +46,18 @@ export function Footer() {
             <ul className="space-y-2">
               {footerLinks.product.map((link) => (
                 <li key={link.name}>
-                  <Link href={link.href} className="text-gray-400 hover:text-[#50C878] text-sm transition-colors">
-                    {link.name}
-                  </Link>
+                  {link.name === "Demo" ? (
+                    <button
+                      onClick={() => setVideoOpen(true)}
+                      className="text-gray-400 hover:text-[#50C878] text-sm transition-colors cursor-pointer text-left w-full"
+                    >
+                      {link.name}
+                    </button>
+                  ) : (
+                    <Link href={link.href} className="text-gray-400 hover:text-[#50C878] text-sm transition-colors">
+                      {link.name}
+                    </Link>
+                  )}
                 </li>
               ))}
             </ul>
@@ -67,9 +83,18 @@ export function Footer() {
             <ul className="space-y-2">
               {footerLinks.support.map((link) => (
                 <li key={link.name}>
-                  <Link href={link.href} className="text-gray-400 hover:text-[#50C878] text-sm transition-colors">
-                    {link.name}
-                  </Link>
+                  {link.name === "Contact" ? (
+                    <button
+                      onClick={() => setContactOpen(true)}
+                      className="text-gray-400 hover:text-[#50C878] text-sm transition-colors cursor-pointer text-left w-full"
+                    >
+                      {link.name}
+                    </button>
+                  ) : (
+                    <Link href={link.href} className="text-gray-400 hover:text-[#50C878] text-sm transition-colors">
+                      {link.name}
+                    </Link>
+                  )}
                 </li>
               ))}
             </ul>
@@ -82,6 +107,9 @@ export function Footer() {
           </p>
         </div>
       </div>
-    </footer>
+      </footer>
+      <VideoModal isOpen={videoOpen} onClose={() => setVideoOpen(false)} />
+      <ContactModal isOpen={contactOpen} onClose={() => setContactOpen(false)} />
+    </>
   )
 }

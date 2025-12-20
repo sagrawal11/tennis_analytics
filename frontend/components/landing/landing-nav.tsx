@@ -29,6 +29,25 @@ export function LandingNav() {
             <span className="text-xl font-bold text-white">Courtvision</span>
           </Link>
 
+          <div className="flex items-center gap-6">
+            <Link href="/how-it-works">
+              <Button
+                variant="ghost"
+                className="text-white hover:text-[#50C878] hover:bg-transparent"
+              >
+                How it Works
+              </Button>
+            </Link>
+            <Link href="/about">
+              <Button
+                variant="ghost"
+                className="text-white hover:text-[#50C878] hover:bg-transparent"
+              >
+                About
+              </Button>
+            </Link>
+          </div>
+
           <div className="flex items-center gap-4">
             <Button
               variant="ghost"

@@ -9,8 +9,8 @@ const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Courtvision - AI-Powered Tennis Analytics",
-  description: "Elevate your tennis game with AI-powered shot tracking and performance analytics",
+  title: "Courtvision - Computer Vision Powered Tennis Analytics",
+  description: "Elevate your tennis game with computer vision powered shot tracking and performance analytics",
   generator: "v0.app",
   icons: {
     icon: [

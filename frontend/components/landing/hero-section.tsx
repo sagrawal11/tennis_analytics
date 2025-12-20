@@ -1,9 +1,9 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { AuthModal } from "@/components/auth/auth-modal"
-import { Play } from "lucide-react"
 
 export function HeroSection() {
   const [authOpen, setAuthOpen] = useState(false)
@@ -21,37 +21,55 @@ export function HeroSection() {
         <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/60 to-black" />
 
         {/* Content */}
-        <div className="relative z-10 max-w-4xl mx-auto px-4 text-center pt-16">
-          <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-white mb-6 text-balance">
-            Elevate Your Tennis Game with <span className="text-[#50C878]">AI-Powered</span> Analytics
-          </h1>
-          <p className="text-xl md:text-2xl text-gray-300 mb-8 text-pretty max-w-2xl mx-auto">
-            Track every shot, analyze every match, improve every day. Transform your performance with intelligent
-            insights.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button
-              onClick={() => setAuthOpen(true)}
-              size="lg"
-              className="bg-[#50C878] hover:bg-[#45b069] text-black font-semibold text-lg px-8 py-6"
-            >
-              Get Started Free
-            </Button>
-            <Button
-              variant="outline"
-              size="lg"
-              className="border-white/30 text-white hover:bg-white/10 hover:border-white/50 text-lg px-8 py-6 bg-transparent"
-            >
-              <Play className="mr-2 h-5 w-5" />
-              Watch Demo
-            </Button>
-          </div>
-        </div>
+        <div className="relative z-10 max-w-7xl mx-auto px-4 pt-16">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
+            {/* Left Side - Video Card */}
+            <div className="order-2 lg:order-1">
+              <div className="bg-[#1a1a1a] rounded-xl p-5 border-2 border-[#50C878]/50 shadow-2xl" style={{ boxShadow: '0 0 20px rgba(80, 200, 120, 0.3), 0 0 40px rgba(80, 200, 120, 0.15)' }}>
+                <div className="w-full h-[300px] md:h-[450px] lg:h-[500px] bg-black rounded-lg overflow-hidden">
+                  {/* Placeholder for video - will be replaced with actual video */}
+                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#0a0a0a] to-[#1a1a1a]">
+                    <p className="text-gray-500 text-sm">Video placeholder - will be replaced with looped video</p>
+                  </div>
+                  {/* When ready, replace the div above with:
+                  <video
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    className="w-full h-full object-cover"
+                  >
+                    <source src="/path-to-your-video.mp4" type="video/mp4" />
+                  </video>
+                  */}
+                </div>
+              </div>
+            </div>
 
-        {/* Scroll indicator */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
-          <div className="w-6 h-10 rounded-full border-2 border-white/30 flex items-start justify-center p-2">
-            <div className="w-1 h-3 bg-white/50 rounded-full" />
+            {/* Right Side - Text and CTA */}
+            <div className="order-1 lg:order-2 text-center lg:text-left">
+              <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-white mb-8 text-balance">
+                Elevate Your Tennis Game with <span className="text-[#50C878]">Computer Vision Powered</span> Analytics
+              </h1>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+                <Link href="/how-it-works">
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    className="!border-white !text-white hover:!text-[#50C878] hover:!border-[#50C878] !bg-transparent hover:!bg-transparent text-lg px-8 py-6"
+                  >
+                    How it Works
+                  </Button>
+                </Link>
+                <Button
+                  onClick={() => setAuthOpen(true)}
+                  size="lg"
+                  className="bg-[#50C878] hover:bg-[#45b069] text-black font-semibold text-lg px-8 py-6"
+                >
+                  Get Started
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       </section>

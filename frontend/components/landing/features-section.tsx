@@ -4,7 +4,7 @@ const features = [
   {
     icon: Target,
     title: "Precise Shot Tracking",
-    description: "Every shot mapped with AI-powered accuracy for detailed analysis.",
+    description: "Every shot mapped with computer vision powered accuracy for detailed analysis.",
   },
   {
     icon: BarChart3,
