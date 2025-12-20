@@ -4,6 +4,7 @@ import { useState } from "react"
 import { MainLayout } from "@/components/layout/main-layout"
 import { CreateTeam } from "@/components/team/create-team"
 import { TeamCode } from "@/components/team/team-code"
+import { TeamMembers } from "@/components/team/team-members"
 import { useTeams } from "@/hooks/useTeams"
 import { useProfile } from "@/hooks/useProfile"
 import { Button } from "@/components/ui/button"
@@ -45,6 +46,15 @@ export default function TeamsPage() {
               )}
             </div>
 
+            {/* Join Team Section */}
+            <div className="bg-[#1a1a1a] rounded-lg border border-[#333333] p-6 shadow-xl">
+              <h2 className="text-xl font-semibold text-white mb-4">Join Team</h2>
+              <p className="text-sm text-gray-400 mb-4">
+                Join an existing team if another coach created it.
+              </p>
+              <TeamCode />
+            </div>
+
             {/* Your Teams Section */}
             {!isLoading && teams.length > 0 && (
               <div className="space-y-4">
@@ -57,9 +67,9 @@ export default function TeamsPage() {
                         {team.code}
                       </span>
                     </div>
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-400 mb-2">Team Members</h4>
-                      <p className="text-sm text-gray-500">Share the team code with players to join.</p>
+                    <div className="mt-4">
+                      <h4 className="text-sm font-medium text-gray-400 mb-3">Team Members</h4>
+                      <TeamMembers teamId={team.id} />
                     </div>
                   </div>
                 ))}
@@ -85,14 +95,21 @@ export default function TeamsPage() {
             {/* Your Teams Section */}
             {!isLoading && teams.length > 0 && (
               <div className="space-y-4">
-                <h2 className="text-lg font-semibold text-white">Your Teams</h2>
-                <div className="space-y-2">
-                  {teams.map((team) => (
-                    <div key={team.id} className="p-3 bg-black/50 border border-[#333333] rounded-lg">
-                      <span className="font-medium text-white">{team.name}</span>
+                <h2 className="text-xl font-semibold text-white">Your Teams</h2>
+                {teams.map((team) => (
+                  <div key={team.id} className="bg-[#1a1a1a] rounded-lg border border-[#333333] p-6 shadow-xl">
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-lg font-semibold text-white">{team.name}</h3>
+                      <span className="bg-black/50 border border-[#50C878]/50 rounded px-3 py-1 text-sm font-mono font-semibold text-[#50C878]">
+                        {team.code}
+                      </span>
                     </div>
-                  ))}
-                </div>
+                    <div className="mt-4">
+                      <h4 className="text-sm font-medium text-gray-400 mb-3">Team Members</h4>
+                      <TeamMembers teamId={team.id} />
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>

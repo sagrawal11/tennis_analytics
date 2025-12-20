@@ -295,13 +295,26 @@ CREATE TRIGGER update_match_data_updated_at BEFORE UPDATE ON public.match_data
 -- Function to automatically create user profile when auth user is created
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
+DECLARE
+  user_role TEXT;
 BEGIN
+  -- Extract role from metadata, ensuring it's a valid value
+  user_role := COALESCE(
+    NULLIF(TRIM(NEW.raw_user_meta_data->>'role'), ''),
+    'player'
+  );
+  
+  -- Ensure role is valid (coach or player)
+  IF user_role NOT IN ('coach', 'player') THEN
+    user_role := 'player';
+  END IF;
+  
   INSERT INTO public.users (id, email, name, role)
   VALUES (
     NEW.id,
     NEW.email,
     COALESCE(NEW.raw_user_meta_data->>'name', ''),
-    COALESCE(NEW.raw_user_meta_data->>'role', 'player') -- Use role from metadata, default to 'player'
+    user_role
   );
   RETURN NEW;
 END;

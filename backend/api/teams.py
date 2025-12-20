@@ -84,7 +84,16 @@ async def create_team(team_data: TeamCreate, user_id: str = Depends(get_user_id)
 async def join_team(join_data: TeamJoin, user_id: str = Depends(get_user_id)):
     """
     Join a team using a team code. Any authenticated user can join.
+    Coaches join as coaches, players join as players.
     """
+    # Get user's role
+    user_response = supabase.table("users").select("role").eq("id", user_id).single().execute()
+    
+    if not user_response.data:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    user_role = user_response.data.get("role", "player")
+    
     # Look up team by code
     team_response = supabase.table("teams").select("*").eq("code", join_data.code).single().execute()
     
@@ -100,11 +109,11 @@ async def join_team(join_data: TeamJoin, user_id: str = Depends(get_user_id)):
     if existing.data:
         raise HTTPException(status_code=400, detail="Already a member of this team")
     
-    # Add user to team
+    # Add user to team with their actual role
     member_response = supabase.table("team_members").insert({
         "team_id": team_id,
         "user_id": user_id,
-        "role": "player"
+        "role": user_role  # Use user's actual role (coach or player)
     }).execute()
     
     if not member_response.data:
