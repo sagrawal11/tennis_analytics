@@ -78,22 +78,22 @@ export function TeamMembers({ teamId, teamName }: TeamMembersProps) {
               const isCurrentUser = member.users?.id === currentUserId
               const playerName = member.users?.name || member.users?.email || 'Unknown'
               return (
-                <div key={member.id} className={`flex items-center justify-between p-3 bg-black/50 rounded-lg border ${isCurrentUser ? 'border-[#50C878]' : 'border-[#333333]'}`}>
+                <div key={member.id} className={`flex items-center justify-between p-3 bg-black/50 rounded-lg border transition-all duration-200 ease-in-out ${isCurrentUser ? 'border-[#50C878]' : 'border-[#333333] hover:border-[#50C878]/50'}`}>
                   <div className="flex items-center gap-3">
                     <div>
-                      <p className="font-medium text-white">{playerName}</p>
-                      <p className="text-xs text-gray-500">{member.users?.email}</p>
+                      <p className="font-medium text-white transition-colors duration-200">{playerName}</p>
+                      <p className="text-xs text-gray-500 transition-colors duration-200">{member.users?.email}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="bg-emerald-900/30 text-emerald-400 border border-emerald-800 rounded px-2 py-1 text-xs font-medium">
+                    <span className="bg-emerald-900/30 text-emerald-400 border border-emerald-800 rounded px-2 py-1 text-xs font-medium transition-all duration-200">
                       Player
                     </span>
                     {isCoach && !isCurrentUser && (
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 text-red-400 hover:text-red-300 hover:bg-red-900/20"
+                        className="h-7 w-7 text-red-400 hover:text-red-300 hover:bg-red-900/20 transition-all duration-200 ease-in-out"
                         onClick={() => {
                           setSelectedPlayerId(member.users?.id)
                           setSelectedPlayerName(playerName)

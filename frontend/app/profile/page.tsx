@@ -37,7 +37,7 @@ export default function ProfilePage() {
       <div className="mx-auto px-4 py-8 max-w-7xl">
         <h1 className="text-3xl font-bold text-white mb-6">Profile</h1>
 
-        <div className="bg-[#1a1a1a] rounded-lg border border-[#333333] p-6 shadow-xl">
+        <div className="bg-[#1a1a1a] rounded-lg border border-[#333333] p-6 shadow-xl transition-all duration-200 ease-in-out">
           {isLoading ? (
             <p className="text-gray-400">Loading profile...</p>
           ) : (
@@ -74,7 +74,7 @@ export default function ProfilePage() {
                     {teams.map((team) => {
                       const isCoach = profile?.role === "coach"
                       return (
-                        <div key={team.id} className="bg-black/50 rounded border border-[#333333] p-4">
+                        <div key={team.id} className="bg-black/50 rounded border border-[#333333] p-4 transition-all duration-200 ease-in-out hover:border-[#50C878]/50">
                           <div className="flex justify-between items-start mb-3">
                             <div>
                               <p className="font-medium text-white">{team.name}</p>

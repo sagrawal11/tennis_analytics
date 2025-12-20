@@ -162,10 +162,10 @@ export default function DashboardPage() {
               const isExpanded = expandedDate === date
 
               return (
-                <div key={date} className="bg-[#1a1a1a] rounded-lg border border-[#333333] shadow-xl overflow-hidden">
+                <div key={date} className="bg-[#1a1a1a] rounded-lg border border-[#333333] shadow-xl overflow-hidden transition-all duration-200 ease-in-out hover:border-[#50C878]/30">
                   <button
                     onClick={() => setExpandedDate(isExpanded ? null : date)}
-                    className="w-full flex justify-between items-center px-6 py-4 hover:bg-[#262626]/50 transition-colors"
+                    className="w-full flex justify-between items-center px-6 py-4 hover:bg-[#262626]/50 transition-all duration-200 ease-in-out"
                   >
                     <span className="text-lg font-semibold text-white">{date}</span>
                     <span className="text-sm text-gray-400">

@@ -55,10 +55,10 @@ export function Sidebar() {
             <Link
               key={item.name}
               href={item.href}
-              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 ease-in-out ${
                 isActive
                   ? "bg-[#50C878]/20 text-[#50C878] border-l-2 border-[#50C878]"
-                  : "text-gray-300 hover:bg-[#262626] hover:text-white"
+                  : "text-gray-300 hover:bg-[#262626] hover:text-white transform hover:translate-x-1"
               }`}
             >
               <item.icon className="h-5 w-5" />
@@ -83,7 +83,7 @@ export function Sidebar() {
           <DropdownMenuContent align="start" className="w-48 bg-[#1a1a1a] border-[#333333]">
             <DropdownMenuItem
               onClick={() => router.push("/profile")}
-              className="text-white hover:bg-[#262626] cursor-pointer"
+              className="text-white hover:bg-[#262626] cursor-pointer transition-all duration-200 ease-in-out"
             >
               <User className="mr-2 h-4 w-4" />
               Profile
@@ -92,7 +92,7 @@ export function Sidebar() {
             <DropdownMenuItem
               onClick={handleSignOut}
               disabled={isSigningOut}
-              className="text-white hover:bg-[#262626] cursor-pointer"
+              className="text-white hover:bg-[#262626] cursor-pointer transition-all duration-200 ease-in-out"
             >
               <LogOut className="mr-2 h-4 w-4" />
               {isSigningOut ? "Signing out..." : "Sign Out"}

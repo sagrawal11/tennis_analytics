@@ -36,7 +36,7 @@ export default function TeamsPage() {
             )}
 
             {/* Create Team Section - Locked if not activated */}
-            <div className="bg-[#1a1a1a] rounded-lg border border-[#333333] p-6 shadow-xl">
+            <div className="bg-[#1a1a1a] rounded-lg border border-[#333333] p-6 shadow-xl transition-all duration-200 ease-in-out hover:border-[#50C878]/30">
               <h2 className="text-xl font-semibold text-white mb-4">Create Team</h2>
 
               {teams.length === 0 && !showCreate && (
@@ -65,7 +65,7 @@ export default function TeamsPage() {
             </div>
 
             {/* Join Team Section - Always available */}
-            <div className="bg-[#1a1a1a] rounded-lg border border-[#333333] p-6 shadow-xl">
+            <div className="bg-[#1a1a1a] rounded-lg border border-[#333333] p-6 shadow-xl transition-all duration-200 ease-in-out hover:border-[#50C878]/30">
               <h2 className="text-xl font-semibold text-white mb-4">Join Team</h2>
               <p className="text-sm text-gray-400 mb-4">
                 Join an existing team if another coach created it. If the team has an activated coach, your account will be activated automatically.
@@ -78,7 +78,7 @@ export default function TeamsPage() {
               <div className="space-y-4">
                 <h2 className="text-xl font-semibold text-white">Your Teams</h2>
                 {teams.map((team) => (
-                  <div key={team.id} className="bg-[#1a1a1a] rounded-lg border border-[#333333] p-6 shadow-xl">
+                  <div key={team.id} className="bg-[#1a1a1a] rounded-lg border border-[#333333] p-6 shadow-xl transition-all duration-200 ease-in-out hover:border-[#50C878]/30 animate-fade-in">
                     <div className="flex justify-between items-center mb-4">
                       <h3 className="text-lg font-semibold text-white">{team.name}</h3>
                       <span className="bg-black/50 border border-[#50C878]/50 rounded px-3 py-1 text-sm font-mono font-semibold text-[#50C878]">
@@ -97,7 +97,7 @@ export default function TeamsPage() {
         ) : (
           <div className="space-y-6">
             {/* Join Team Section */}
-            <div className="bg-[#1a1a1a] rounded-lg border border-[#333333] p-6 shadow-xl">
+            <div className="bg-[#1a1a1a] rounded-lg border border-[#333333] p-6 shadow-xl transition-all duration-200 ease-in-out hover:border-[#50C878]/30">
               <h2 className="text-xl font-semibold text-white mb-4">Join Team</h2>
 
               {teams.length === 0 && (
@@ -115,7 +115,7 @@ export default function TeamsPage() {
               <div className="space-y-4">
                 <h2 className="text-xl font-semibold text-white">Your Teams</h2>
                 {teams.map((team) => (
-                  <div key={team.id} className="bg-[#1a1a1a] rounded-lg border border-[#333333] p-6 shadow-xl">
+                  <div key={team.id} className="bg-[#1a1a1a] rounded-lg border border-[#333333] p-6 shadow-xl transition-all duration-200 ease-in-out hover:border-[#50C878]/30 animate-fade-in">
                     <div className="flex justify-between items-center mb-4">
                       <h3 className="text-lg font-semibold text-white">{team.name}</h3>
                       <span className="bg-black/50 border border-[#50C878]/50 rounded px-3 py-1 text-sm font-mono font-semibold text-[#50C878]">

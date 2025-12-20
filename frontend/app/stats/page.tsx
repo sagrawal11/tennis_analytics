@@ -147,19 +147,19 @@ export default function StatsPage() {
           <>
             {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-              <div className="bg-[#1a1a1a] rounded-lg border border-[#333333] p-6 shadow-xl">
+              <div className="bg-[#1a1a1a] rounded-lg border border-[#333333] p-6 shadow-xl transition-all duration-200 ease-in-out hover:border-[#50C878]/30">
                 <p className="text-sm font-medium text-gray-400 mb-2">Total Matches</p>
                 <p className="text-3xl font-bold text-white">{totalMatches}</p>
               </div>
-              <div className="bg-[#1a1a1a] rounded-lg border border-[#333333] p-6 shadow-xl">
+              <div className="bg-[#1a1a1a] rounded-lg border border-[#333333] p-6 shadow-xl transition-all duration-200 ease-in-out hover:border-[#50C878]/30">
                 <p className="text-sm font-medium text-gray-400 mb-2">Total Shots</p>
                 <p className="text-3xl font-bold text-white">{totalShots}</p>
               </div>
-              <div className="bg-[#1a1a1a] rounded-lg border border-[#333333] p-6 shadow-xl">
+              <div className="bg-[#1a1a1a] rounded-lg border border-[#333333] p-6 shadow-xl transition-all duration-200 ease-in-out hover:border-[#50C878]/30">
                 <p className="text-sm font-medium text-gray-400 mb-2">Win Rate</p>
                 <p className="text-3xl font-bold text-[#50C878]">58%</p>
               </div>
-              <div className="bg-[#1a1a1a] rounded-lg border border-[#333333] p-6 shadow-xl">
+              <div className="bg-[#1a1a1a] rounded-lg border border-[#333333] p-6 shadow-xl transition-all duration-200 ease-in-out hover:border-[#50C878]/30">
                 <p className="text-sm font-medium text-gray-400 mb-2">Avg Shots/Match</p>
                 <p className="text-3xl font-bold text-white">{avgShotsPerMatch}</p>
               </div>
@@ -168,7 +168,7 @@ export default function StatsPage() {
             {/* Charts */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Shot Distribution */}
-              <div className="bg-[#1a1a1a] rounded-lg border border-[#333333] p-6 shadow-xl">
+              <div className="bg-[#1a1a1a] rounded-lg border border-[#333333] p-6 shadow-xl transition-all duration-200 ease-in-out hover:border-[#50C878]/30">
                 <h3 className="text-lg font-semibold text-white mb-4">Shot Distribution</h3>
                 <ResponsiveContainer width="100%" height={250}>
                   <PieChart>
@@ -196,7 +196,7 @@ export default function StatsPage() {
               </div>
 
               {/* Performance by Match */}
-              <div className="bg-[#1a1a1a] rounded-lg border border-[#333333] p-6 shadow-xl">
+              <div className="bg-[#1a1a1a] rounded-lg border border-[#333333] p-6 shadow-xl transition-all duration-200 ease-in-out hover:border-[#50C878]/30">
                 <h3 className="text-lg font-semibold text-white mb-4">Performance by Match</h3>
                 <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={matchPerformance}>
