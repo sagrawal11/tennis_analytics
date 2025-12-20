@@ -1,25 +1,188 @@
-# Tennis Analytics Application
+# Courtvision - AI-Powered Tennis Analytics
 
-A full-stack tennis analytics web application for coaches and players to track match performance, visualize shot patterns, and analyze statistics.
+A full-stack tennis analytics web application for coaches and players to track match performance, visualize shot patterns, and analyze statistics using computer vision.
 
-## Tech Stack
+## 🎾 Overview
 
-- **Frontend**: Next.js 14+ (App Router), TypeScript, Tailwind CSS, shadcn/ui
-- **Backend**: FastAPI (Python)
-- **Database & Auth**: Supabase (PostgreSQL + Auth + Realtime)
-- **State Management**: TanStack Query, Zustand
-- **Forms**: React Hook Form + Zod
-- **Charts**: Recharts
+Courtvision enables tennis coaches to manage teams, track player performance, and analyze match data through an intuitive web interface. Players can upload their matches, view their shot patterns on an interactive court diagram, and track their statistics over time.
 
-## Prerequisites
+### Key Features
+
+- **Role-Based Access**: Coaches and players with different permissions and views
+- **Team Management**: Coaches create teams with codes; players join via codes
+- **Match Upload**: Upload Playsight video links for processing
+- **Interactive Court Visualization**: Clickable shot patterns on a tennis court diagram
+- **Real-Time Processing**: Track video processing status with live updates
+- **Statistics Tracking**: Comprehensive stats for players and teams
+- **Modern UI**: Beautiful landing page, dark theme with emerald green accents
+
+---
+
+## 🛠 Tech Stack
+
+### Frontend
+- **Framework**: Next.js 14+ (App Router)
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS + shadcn/ui components
+- **State Management**: TanStack Query (React Query) for server state
+- **Forms**: React Hook Form + Zod validation
+- **Charts**: Recharts (for future stats visualization)
+- **Icons**: Lucide React
+
+### Backend
+- **Framework**: FastAPI (Python)
+- **Database Client**: Supabase Python client
+- **Authentication**: Supabase Auth (JWT tokens)
+
+### Database & Infrastructure
+- **Database**: Supabase (PostgreSQL)
+- **Authentication**: Supabase Auth (email/password)
+- **Real-time**: Supabase Realtime (for processing status updates)
+- **Row Level Security**: RLS policies for data isolation
+
+### Deployment
+- **Frontend**: Vercel (planned)
+- **Backend**: Railway (planned)
+- **Current**: Local development
+
+---
+
+## ✅ Completed Features
+
+### Phase 1: Foundation & Authentication
+- ✅ Project structure (frontend/backend directories)
+- ✅ Next.js 14+ frontend with TypeScript, Tailwind CSS, shadcn/ui
+- ✅ FastAPI backend structure with CORS configuration
+- ✅ Supabase database schema deployed and verified
+- ✅ Email/password authentication working
+- ✅ Landing page with hero section, features, testimonials
+- ✅ Modal-based authentication (sign in/sign up)
+- ✅ Role-based signup (coach/player selection)
+- ✅ Database trigger automatically creates user profile on signup
+- ✅ Protected routes with middleware
+- ✅ Profile page with user information
+
+### Phase 2: Core UI & Navigation
+- ✅ Main layout with sidebar navigation
+- ✅ Floating action button for quick actions
+- ✅ Dashboard page with date-organized match listings
+- ✅ Stats page structure (coach/player views)
+- ✅ Teams page with coach/player views
+- ✅ Profile page with user info and teams
+- ✅ Responsive design (mobile-friendly)
+- ✅ Dark theme with emerald green (#50C878) accents
+- ✅ Cursor pointer on all clickable elements
+
+### Phase 3: Team Management
+- ✅ Team creation (coaches) with unique code generation
+- ✅ Team joining via codes (players and coaches)
+- ✅ Team members display (shows all coaches and players)
+- ✅ Teams page with separate views for coaches and players
+- ✅ Backend API for team management (create, join, list, members)
+- ✅ Coaches can join existing teams (multi-coach support)
+- ✅ Players can only join teams
+- ✅ Team members list with role badges
+
+### Phase 4: Match Management
+- ✅ Upload modal with Playsight link input
+- ✅ Player identification interface (multi-frame click-to-identify)
+- ✅ Processing status component with real-time updates
+- ✅ Match detail page with court diagram placeholder
+- ✅ Match stats display component
+- ✅ Coach can upload matches for team members
+- ✅ Player filter dropdown for coaches on dashboard
+- ✅ Match cards with date grouping
+
+### Phase 5: Backend API
+- ✅ FastAPI endpoints for teams (create, join, list, members)
+- ✅ FastAPI endpoints for matches (list, get, create)
+- ✅ FastAPI endpoints for videos (upload, identify player, status)
+- ✅ FastAPI endpoints for stats (player stats, season stats)
+- ✅ Authentication middleware with Supabase token verification
+- ✅ Role-based access control in API endpoints
+- ✅ Data isolation for coaches (only see their team's matches)
+
+### Phase 6: Database & Security
+- ✅ Complete database schema with all tables
+- ✅ Row Level Security (RLS) policies configured
+- ✅ Database triggers for automatic user profile creation
+- ✅ Team membership junction table
+- ✅ Match ownership tracking
+- ✅ Data isolation between coaches and teams
+
+---
+
+## 🚧 Still Needs Implementation
+
+### High Priority
+
+1. **Playsight Frame Extraction**
+   - Backend needs to extract frames from Playsight videos for player identification
+   - Currently using placeholder frames
+   - Need to research Playsight API or scraping methods
+
+2. **CV Backend Integration**
+   - Connect to actual CV processing pipeline (`old/src/core/tennis_CV.py`)
+   - Implement video processing workflow
+   - Parse JSON output from CV backend
+   - Store processed data in database
+
+3. **Player Tracking**
+   - Implement color recognition based on player identification clicks
+   - Track player position throughout video
+   - Generate shot data from tracking
+
+4. **Court Visualization with Real Data**
+   - Parse shot data from JSON output
+   - Render shots on court diagram with correct positions
+   - Implement clickable shot lines with video timestamp navigation
+   - Color code shots (winners/errors/in-play)
+
+5. **Statistics Visualization**
+   - Add Recharts components for detailed statistics
+   - Create charts for winners/errors over time
+   - Shot distribution charts
+   - Performance by match charts
+   - Shot pattern visualizations
+
+### Medium Priority
+
+6. **Video Processing Workflow**
+   - Complete async video processing pipeline
+   - Queue system for video processing
+   - Error handling and retry logic
+   - Progress tracking and updates
+
+7. **Error Handling & User Feedback**
+   - Comprehensive error handling throughout app
+   - User-friendly error messages
+   - Loading states and indicators
+   - Success notifications
+
+8. **Testing**
+   - Unit tests for components
+   - Integration tests for API endpoints
+   - End-to-end testing for user flows
+   - Database migration tests
+
+### Low Priority
+
+9. **Additional Features**
+   - Match sharing functionality
+   - Export statistics to PDF/CSV
+   - Advanced filtering and search
+   - Match comparison tools
+   - Player performance trends
+
+---
+
+## 📋 Setup Instructions
+
+### Prerequisites
 
 - Node.js 18+ and npm
 - Python 3.8+
 - Supabase account (free tier works)
-
-## Complete Setup Guide
-
-Follow these steps in order to get everything running.
 
 ### Step 1: Create Supabase Project
 
@@ -35,7 +198,7 @@ Follow these steps in order to get everything running.
 ### Step 2: Get Supabase Credentials
 
 1. In your Supabase project dashboard, go to **Settings** → **API**
-2. Copy the following (you'll need these in Step 4):
+2. Copy the following:
    - **Project URL** (e.g., `https://xxxxx.supabase.co`)
    - **anon/public key** (starts with `eyJ...`)
    - **service_role key** (keep this secret! Only for backend)
@@ -51,7 +214,7 @@ Follow these steps in order to get everything running.
    - Copy the **entire contents** of the file
    - Paste into the SQL Editor
    - Click **Run** (or press Cmd/Ctrl + Enter)
-   - You should see: **"Success. No rows returned"** (this is normal for DDL statements)
+   - You should see: **"Success. No rows returned"** (this is normal)
 
 3. **Verify Tables Created**
    - Go to **Table Editor** in the left sidebar
@@ -63,8 +226,6 @@ Follow these steps in order to get everything running.
      - ✅ `match_data` - JSON data from CV processing
      - ✅ `shots` - Individual shot records
      - ✅ `player_identifications` - Player identification data
-
-**Note**: If you see warnings about `auth.users` or `uuid-ossp`, that's normal - ignore them. The "Success. No rows returned" message is expected for schema creation.
 
 ### Step 4: Configure Environment Variables
 
@@ -103,15 +264,15 @@ source ../tennis_env/bin/activate  # On Windows: ..\tennis_env\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### Step 6: Configure Email Authentication (Recommended for Development)
+### Step 6: Configure Email Authentication
 
-Email/password authentication is enabled by default in Supabase. For easier development, disable email confirmation:
+For easier development, disable email confirmation:
 
 1. Go to **Authentication** → **Settings** in Supabase dashboard
 2. Under "Email Auth", toggle off **"Enable email confirmations"**
 3. (Re-enable for production!)
 
-This lets you sign up and immediately sign in without checking email. The database trigger will automatically create a user profile when someone signs up.
+This lets you sign up and immediately sign in without checking email.
 
 ### Step 7: Run Development Servers
 
@@ -137,7 +298,6 @@ API docs at http://localhost:8000/docs
 cd frontend
 npm run dev
 ```
-Frontend will be available at http://localhost:3000
 
 **Terminal 2 - Backend:**
 ```bash
@@ -145,109 +305,450 @@ cd backend
 source ../tennis_env/bin/activate  # On Windows: ..\tennis_env\Scripts\activate
 uvicorn main:app --reload --port 8000
 ```
-Backend API will be available at http://localhost:8000  
-API docs at http://localhost:8000/docs
 
 ### Step 8: Test the Setup
 
 1. **Visit the App**
    - Go to http://localhost:3000
-   - You should be redirected to `/login`
+   - You should see the landing page
 
 2. **Create a Test Account**
-   - Click "Don't have an account? Sign up"
-   - Enter:
-     - Name: Your name
-     - Email: your-email@example.com
-     - Password: (at least 6 characters)
+   - Click "Sign Up" in the top right
+   - Select role (Coach or Player)
+   - Enter: Name, Email, Password
    - Click "Sign up"
-
-3. **Sign In**
-   - Use your email and password
    - You should be redirected to `/dashboard`
-   - You should see your user info
 
-If everything works, you're ready to start building! 🎾
+3. **Test Team Creation (Coach)**
+   - Go to `/teams`
+   - Click "Create New Team"
+   - Enter team name
+   - See team code generated
 
-## Project Structure
+4. **Test Team Joining (Player)**
+   - Sign up as a player
+   - Go to `/teams`
+   - Enter team code from coach
+   - Click "Join"
+
+---
+
+## 📁 Project Structure
 
 ```
 tennis_analytics/
-├── frontend/              # Next.js frontend
-│   ├── app/              # App Router pages
-│   │   ├── login/        # Login/signup page
-│   │   └── dashboard/    # Dashboard page
-│   ├── components/        # React components
-│   ├── lib/              # Utilities & Supabase client
-│   │   └── supabase/     # Supabase client config
-│   └── hooks/            # Custom React hooks
-│       └── useAuth.ts    # Authentication hook
-├── backend/              # FastAPI backend
-│   ├── api/              # API route handlers
-│   ├── services/         # Business logic
-│   ├── models/           # Data models
-│   └── main.py           # FastAPI app entry point
-├── supabase/             # Database schema
-│   └── schema.sql        # Complete database schema
-└── old/                  # Legacy CV backend code
+├── frontend/                    # Next.js frontend
+│   ├── app/                     # App Router pages
+│   │   ├── page.tsx            # Landing page
+│   │   ├── dashboard/          # Dashboard page
+│   │   ├── stats/             # Stats page
+│   │   ├── teams/             # Teams page
+│   │   ├── profile/            # Profile page
+│   │   ├── matches/[id]/      # Match detail page
+│   │   └── layout.tsx         # Root layout
+│   ├── components/             # React components
+│   │   ├── auth/              # Authentication components
+│   │   ├── landing/           # Landing page components
+│   │   ├── layout/            # Layout components (sidebar, etc.)
+│   │   ├── team/              # Team management components
+│   │   ├── upload/            # Upload and processing components
+│   │   ├── court/             # Court visualization components
+│   │   ├── match/              # Match-related components
+│   │   └── ui/                # shadcn/ui components
+│   ├── hooks/                  # Custom React hooks
+│   │   ├── useAuth.ts         # Authentication hook
+│   │   ├── useMatches.ts      # Matches data hook
+│   │   ├── useTeams.ts        # Teams data hook
+│   │   ├── useProfile.ts      # User profile hook
+│   │   └── useTeamMembers.ts  # Team members hook
+│   ├── lib/                    # Utilities & configuration
+│   │   ├── supabase/          # Supabase client setup
+│   │   ├── utils.ts           # Utility functions
+│   │   └── types.ts           # TypeScript types
+│   └── .env.local             # Environment variables (not in git)
+├── backend/                    # FastAPI backend
+│   ├── api/                    # API route handlers
+│   │   ├── teams.py           # Team endpoints
+│   │   ├── matches.py         # Match endpoints
+│   │   ├── videos.py          # Video endpoints
+│   │   └── stats.py           # Stats endpoints
+│   ├── services/               # Business logic
+│   │   ├── cv_integration.py  # CV backend integration
+│   │   ├── player_tracker.py  # Player tracking service
+│   │   └── playsight.py       # Playsight integration
+│   ├── auth.py                 # Authentication middleware
+│   ├── main.py                 # FastAPI app entry point
+│   └── requirements.txt        # Python dependencies
+├── supabase/                   # Database schema
+│   └── schema.sql             # Complete database schema
+├── old/                        # Legacy CV backend code
+├── SAM3/                       # SAM3 model files (large, not in git)
+├── start_frontend.sh          # Frontend startup script
+├── start_backend.sh           # Backend startup script
+└── README.md                  # This file
 ```
 
-## What's Already Set Up
+---
 
-✅ **Project Structure**: Frontend and backend directories created  
-✅ **Database Schema**: All tables created with relationships and RLS policies (users, teams, team_members, matches, match_data, shots, player_identifications)  
-✅ **Supabase Configuration**: Schema successfully deployed, tables verified  
-✅ **Authentication**: Email/password auth with Supabase (simplified, no OAuth needed)  
-✅ **Auto User Profile**: Database trigger automatically creates user profile on signup  
-✅ **Login/Signup Pages**: Fully functional at `/login`  
-✅ **Protected Routes**: Dashboard requires authentication, middleware configured  
-✅ **Frontend Structure**: Next.js 14+ with TypeScript, Tailwind CSS, and shadcn/ui  
-✅ **Supabase Client**: Client and server-side Supabase configuration ready  
-✅ **Backend Structure**: FastAPI initialized with CORS configured  
-✅ **Team Management Schema**: Supports coaches creating teams with codes, players joining via codes  
+## 🔄 User Flows
 
-## Troubleshooting
+### Authentication Flow
 
-### Frontend won't start
-- Make sure Node.js 18+ is installed: `node --version`
-- Check that `frontend/.env.local` has valid Supabase credentials
+1. **Sign Up (Coach)**
+   - Visit landing page
+   - Click "Sign Up" → Modal opens
+   - Select "Coach" role
+   - Fill in: Name, Email, Password
+   - Click "Sign up"
+   - Auto-redirect to `/dashboard`
+   - Role saved to database via trigger
+
+2. **Sign Up (Player)**
+   - Same as coach, but select "Player" role
+
+3. **Sign In**
+   - Click "Sign In" → Modal opens
+   - Enter email and password
+   - Click "Sign in"
+   - Redirect to `/dashboard`
+
+### Team Management Flow
+
+1. **Coach Creates Team**
+   - Go to `/teams`
+   - Click "Create New Team"
+   - Enter team name
+   - See team code displayed
+   - Team appears in "Your Teams" list
+
+2. **Player Joins Team**
+   - Go to `/teams`
+   - Enter team code from coach
+   - Click "Join"
+   - Team appears in "Your Teams" list
+
+3. **Coach Joins Existing Team**
+   - Go to `/teams`
+   - Enter team code from another coach
+   - Click "Join"
+   - Coach joins as coach role
+   - Team appears in "Your Teams" list
+
+### Match Upload Flow
+
+1. **Player Uploads Own Match**
+   - Click floating "+" button
+   - Modal opens
+   - Enter Playsight link
+   - Click "Upload"
+   - Redirect to `/matches/[id]/identify`
+   - Click on yourself in frames
+   - Submit identification
+   - Match appears in dashboard
+
+2. **Coach Uploads Match for Player**
+   - Click floating "+" button
+   - Modal opens
+   - **Select player** from dropdown (team members)
+   - Enter Playsight link
+   - Click "Upload"
+   - Redirect to identification page
+   - Coach clicks on player in frames
+   - Submit identification
+   - **Match appears in BOTH coach's and player's dashboard**
+
+### Dashboard Flow
+
+1. **Player View**
+   - See all own matches
+   - Grouped by date
+   - Click match to view details
+
+2. **Coach View**
+   - See all team member matches
+   - Player filter dropdown at top
+   - Default: "All Players"
+   - Can filter by specific player
+   - Matches grouped by date
+
+### Match Detail Flow
+
+1. **View Match (Processing)**
+   - Click match card
+   - See processing status
+   - No court diagram (status !== 'completed')
+   - Message: "Processing in progress..."
+
+2. **View Match (Completed)**
+   - Click match card
+   - See court diagram with shots
+   - Click shot line → Video panel opens
+   - Video jumps to shot timestamp
+   - See match stats below court
+
+---
+
+## 🗄️ Database Schema
+
+### Tables
+
+- **`users`** - User profiles (extends auth.users)
+  - `id` (UUID, primary key)
+  - `email` (TEXT, unique)
+  - `name` (TEXT)
+  - `role` (TEXT: 'coach' or 'player')
+  - `team_id` (UUID, nullable, references teams)
+
+- **`teams`** - Teams with unique codes
+  - `id` (UUID, primary key)
+  - `name` (TEXT)
+  - `code` (TEXT, unique, 6 characters)
+  - `created_at`, `updated_at`
+
+- **`team_members`** - Team membership junction table
+  - `id` (UUID, primary key)
+  - `team_id` (UUID, references teams)
+  - `user_id` (UUID, references users)
+  - `role` (TEXT: 'coach' or 'player')
+  - `joined_at` (TIMESTAMP)
+
+- **`matches`** - Match records
+  - `id` (UUID, primary key)
+  - `user_id` (UUID, references users - the player)
+  - `player_name` (TEXT, nullable)
+  - `playsight_link` (TEXT)
+  - `video_url` (TEXT, nullable)
+  - `status` (TEXT: 'pending', 'processing', 'completed', 'failed')
+  - `processed_at` (TIMESTAMP, nullable)
+  - `created_at`, `updated_at`
+
+- **`match_data`** - JSON data from CV processing
+  - `id` (UUID, primary key)
+  - `match_id` (UUID, references matches)
+  - `json_data` (JSONB)
+  - `stats_summary` (JSONB, nullable)
+  - `created_at`, `updated_at`
+
+- **`shots`** - Individual shot records
+  - `id` (UUID, primary key)
+  - `match_id` (UUID, references matches)
+  - `shot_type` (TEXT, nullable)
+  - `start_pos` (JSONB: {x, y})
+  - `end_pos` (JSONB: {x, y})
+  - `timestamp` (INTEGER - frame number)
+  - `video_timestamp` (REAL - seconds)
+  - `result` (TEXT: 'winner', 'error', 'in_play')
+  - `created_at`
+
+- **`player_identifications`** - Player identification data
+  - `id` (UUID, primary key)
+  - `match_id` (UUID, references matches)
+  - `frame_data` (JSONB)
+  - `selected_player_coords` (JSONB: {x, y})
+  - `created_at`
+
+### Row Level Security (RLS)
+
+All tables have RLS enabled with policies that:
+- Users can view/update their own data
+- Coaches can view all team member matches
+- Team members can view each other's basic info
+- Data is isolated between different coaches' teams
+
+### Triggers
+
+- **`handle_new_user()`** - Automatically creates user profile when auth user is created
+  - Reads role from `auth.users.raw_user_meta_data->>'role'`
+  - Defaults to 'player' if not specified
+  - Validates role is 'coach' or 'player'
+
+- **`update_updated_at_column()`** - Automatically updates `updated_at` timestamp on row updates
+
+---
+
+## 🔌 API Endpoints
+
+### Teams
+
+- `GET /api/teams/my-teams` - Get user's teams
+- `POST /api/teams/create` - Create team (coaches only)
+- `POST /api/teams/join` - Join team using code (coaches and players)
+- `GET /api/teams/{team_id}/members` - Get team members
+
+### Matches
+
+- `GET /api/matches` - Get user's matches (coaches see all team matches)
+- `POST /api/matches` - Create match (with optional `user_id` for coach uploads)
+- `GET /api/matches/{id}` - Get match details
+
+### Videos
+
+- `POST /api/videos/upload` - Upload video (creates match)
+- `POST /api/videos/identify-player` - Submit player identification
+- `GET /api/videos/{match_id}/status` - Get processing status
+
+### Stats
+
+- `GET /api/stats/player/{player_id}` - Get player stats
+- `GET /api/stats/season` - Get season stats for user
+
+### Health
+
+- `GET /api/health` - Health check endpoint
+
+All endpoints require authentication via Bearer token (Supabase JWT).
+
+---
+
+## 🧪 Testing
+
+### Quick Test Checklist
+
+1. **Authentication**
+   - ✅ Sign up as coach
+   - ✅ Sign up as player
+   - ✅ Sign in with both accounts
+   - ✅ Verify role is saved correctly
+
+2. **Team Management**
+   - ✅ Coach creates team
+   - ✅ Player joins team
+   - ✅ Coach joins existing team
+   - ✅ View team members (coaches and players)
+
+3. **Match Upload**
+   - ✅ Player uploads own match
+   - ✅ Coach uploads match for player
+   - ✅ Match appears in both dashboards
+
+4. **Dashboard**
+   - ✅ Player sees own matches
+   - ✅ Coach sees all team matches
+   - ✅ Coach can filter by player
+
+5. **Navigation**
+   - ✅ All pages accessible
+   - ✅ Profile page shows correct info
+   - ✅ Sign out works
+
+### API Testing
+
+Visit http://localhost:8000/docs for interactive API documentation (Swagger UI).
+
+---
+
+## 🐛 Troubleshooting
+
+### Frontend Issues
+
+**Frontend won't start**
+- Check Node.js 18+ is installed: `node --version`
+- Verify `frontend/.env.local` has valid Supabase credentials
 - Try: `cd frontend && npm install` again
+- Check port 3000 is not in use: `lsof -i :3000`
 
-### Backend won't start
-- Make sure Python 3.8+ is installed: `python3 --version`
-- Activate virtual environment: `source tennis_env/bin/activate` (from project root)
+**Landing page redirects to /login**
+- Check middleware.ts doesn't have redirect logic
+- Verify `app/page.tsx` is the landing page component
+- Clear `.next` cache: `rm -rf frontend/.next`
+
+**Buttons don't show pointer cursor**
+- Check `globals.css` has cursor rules
+- Verify button components have `cursor-pointer` class
+
+### Backend Issues
+
+**Backend won't start**
+- Check Python 3.8+ is installed: `python3 --version`
+- Activate virtual environment: `source tennis_env/bin/activate`
 - Install dependencies: `pip install -r backend/requirements.txt`
-- Check `backend/.env` file has valid Supabase credentials
+- Check `backend/.env` has valid Supabase credentials
+- Check port 8000 is not in use: `lsof -i :8000`
 
-### Database errors
+**ModuleNotFoundError**
+- Activate virtual environment
+- Run `pip install -r backend/requirements.txt`
+
+### Database Issues
+
+**Database errors**
 - Make sure you've run `supabase/schema.sql` in Supabase SQL Editor
-- Check that all tables are created in Table Editor
-- Verify your Supabase credentials in `.env` files are correct
+- Check all tables are created in Table Editor
+- Verify Supabase credentials in `.env` files are correct
 
-### Can't sign up / Email not sending
-- Check **Authentication** → **Settings** → **Email Auth** in Supabase
-- For development, disable email confirmation (see Step 6)
-- Check Supabase project is active (not paused)
-
-### User profile not created
-- Check the database trigger was created
+**User profile not created**
+- Check database trigger was created
 - In Supabase SQL Editor, run: `SELECT * FROM public.users;`
 - If empty, re-run the schema.sql file
 
-### "relation auth.users does not exist" warning
+**Role not saved correctly**
+- Check trigger function `handle_new_user()` is updated
+- Verify role is passed in signup metadata
+- Check browser console for "Signing up with role: coach/player" log
+
+### Authentication Issues
+
+**Can't sign up / Email not sending**
+- Check **Authentication** → **Settings** → **Email Auth** in Supabase
+- For development, disable email confirmation
+- Check Supabase project is active (not paused)
+
+**"relation auth.users does not exist" warning**
 - This is normal! `auth.users` is created automatically by Supabase
-- The schema references it, but you don't create it manually
 - You can safely ignore this warning
 
-## Development
+### CORS Issues
+
+**CORS errors in browser**
+- Verify `ALLOWED_ORIGINS=http://localhost:3000` in `backend/.env`
+- Check `backend/main.py` has CORS middleware configured
+- Restart backend server after changing `.env`
+
+---
+
+## 🔒 Data Isolation
+
+### How It Works
+
+- **Players belong to teams** (via `team_members` table)
+- **Coaches create teams** and players join via team codes
+- **Each team is isolated** - coaches only see data from players on their teams
+- **Multiple coaches are isolated** - Coach A cannot see Coach B's team data
+
+### Example
+
+**Coach A:**
+- Creates "Team Alpha" (code: ABC123)
+- Players: Player1, Player2, Player3 join Team Alpha
+
+**Coach B:**
+- Creates "Team Beta" (code: XYZ789)
+- Players: Player4, Player5, Player6 join Team Beta
+
+**Result:**
+- ✅ Coach A sees matches from Player1, Player2, Player3 only
+- ✅ Coach B sees matches from Player4, Player5, Player6 only
+- ✅ Coach A **cannot** see matches from Player4, Player5, Player6
+- ✅ Players only see their own matches
+
+### Enforcement
+
+- **RLS Policies**: Database-level security ensures coaches can only query matches from their team members
+- **Backend API**: Additional filtering ensures only team member matches are returned
+- **Team Membership**: Players must join teams via codes, ensuring proper team assignment
+
+---
+
+## 📝 Development Notes
 
 ### Frontend Development
 
 - Uses Next.js 14+ App Router
 - Pages in `app/` directory
-- Components in `components/` (create as needed)
-- Hooks in `hooks/`
+- Components in `components/` directory
+- Hooks in `hooks/` directory
 - Supabase client in `lib/supabase/`
+- All API calls go through backend (not direct Supabase)
 
 ### Backend Development
 
@@ -255,103 +756,25 @@ tennis_analytics/
 - Add API routes in `backend/api/`
 - Add services in `backend/services/`
 - Add models in `backend/models/`
+- All database access goes through Supabase client
 
 ### Database Changes
 
 - Schema defined in `supabase/schema.sql`
 - Run SQL directly in Supabase SQL Editor
 - Row Level Security (RLS) policies are configured
+- Use `CREATE OR REPLACE FUNCTION` for function updates
 
-## Current Status
+### Code Style
 
-### ✅ Completed Features
-
-**Phase 1: Foundation**
-- ✅ Project structure (frontend/backend directories)
-- ✅ Next.js 14+ frontend with TypeScript, Tailwind CSS, shadcn/ui
-- ✅ FastAPI backend structure
-- ✅ Supabase database schema deployed and verified
-- ✅ Email/password authentication working
-- ✅ Login/signup pages functional
-
-**Phase 2: Core UI**
-- ✅ Main layout with sidebar navigation and floating action button
-- ✅ Dashboard page with date-organized match listings
-- ✅ Stats page structure (coach/player views)
-- ✅ Responsive design
-
-**Phase 3: Match Visualization**
-- ✅ Interactive tennis court diagram component
-- ✅ Shot visualization with color coding (winners/errors/in-play)
-- ✅ Clickable shot lines with hover states
-- ✅ Video panel for Playsight embedding
-- ✅ Match detail page with court and stats
-- ✅ Match stats display component
-
-**Phase 4: Video Processing**
-- ✅ Upload modal with Playsight link input
-- ✅ Player identification interface (multi-frame click-to-identify)
-- ✅ Processing status component with real-time updates
-- ✅ Backend endpoints for video upload and processing
-
-**Phase 5: Team Management**
-- ✅ Team creation (coaches) with code generation
-- ✅ Player joining via team codes
-- ✅ Team members display
-- ✅ Teams page with coach/player views
-- ✅ Backend API for team management
-
-**Phase 6: Backend API**
-- ✅ FastAPI endpoints for teams (create, join, list, members)
-- ✅ FastAPI endpoints for matches (list, get, create)
-- ✅ FastAPI endpoints for videos (upload, identify player, status)
-- ✅ FastAPI endpoints for stats (player stats, season stats)
-- ✅ Authentication middleware with Supabase token verification
-
-**Phase 7: Integration**
-- ✅ CV backend integration service structure
-- ✅ Player tracking service (color recognition)
-- ✅ Playsight integration research and placeholder
-
-### 🚧 Still Needs Implementation
-
-1. **Playsight Frame Extraction** - Backend needs to extract frames from Playsight videos for player identification
-2. **CV Backend Integration** - Connect to actual CV processing pipeline in `old/src/core/tennis_CV.py`
-3. **Player Tracking** - Implement actual color recognition and player tracking throughout video
-4. **Stats Visualization** - Add Recharts components for detailed statistics display
-5. **Video Processing Workflow** - Complete the async video processing pipeline
-6. **Error Handling** - Add comprehensive error handling and user feedback
-7. **Loading States** - Add loading indicators throughout the app
-8. **Testing** - Add unit tests and integration tests
-
-## Features Status
-
-- [x] **User authentication** - Email/password signup and login working
-- [x] **Database schema** - All tables and RLS policies configured
-- [x] **Team management** - Full UI and backend API for coaches creating teams and players joining
-- [x] **Dashboard** - Match listings with date organization
-- [x] **Match upload** - Playsight link submission UI
-- [x] **Interactive court visualization** - Court diagram with shot patterns
-- [x] **Shot visualization** - Clickable shots with color coding
-- [x] **Video panel** - Side panel for Playsight video embedding
-- [x] **Player identification** - Multi-frame click-to-identify interface
-- [x] **Processing status** - Real-time status updates via Supabase Realtime
-- [x] **Backend API** - All endpoints for teams, matches, videos, stats
-- [ ] **Playsight frame extraction** - Extract frames from Playsight videos
-- [ ] **CV processing** - Connect to actual CV backend for video analysis
-- [ ] **Statistics visualization** - Charts and detailed stats display
-- [ ] **Player tracking** - Implement color recognition tracking
-
-## Need Help?
-
-- Check Supabase dashboard for database issues
-- Check browser console for frontend errors
-- Check terminal output for backend errors
-- Verify all environment variables are set correctly
+- Frontend: TypeScript with strict mode
+- Backend: Python with type hints
+- Follow existing patterns in codebase
+- Use shadcn/ui components for UI consistency
 
 ---
 
-## Large Files & Git Notes
+## 📦 Large Files & Git
 
 ### ⚠️ Important: Large Model File
 
@@ -371,12 +794,11 @@ The following are automatically excluded via `.gitignore`:
 - `*.cbm` - CatBoost model files
 
 **Dependencies:**
-- `tennis_env/` - Python virtual environment (create locally: `python3 -m venv tennis_env`)
-- `frontend/node_modules/` - Node dependencies (install with `npm install`)
+- `tennis_env/` - Python virtual environment
+- `frontend/node_modules/` - Node dependencies
 
 **Media & Data:**
 - Video files (`.mp4`, `.avi`, `.mov`, etc.)
-- Test videos in `tests/` directory
 - Image files (`.jpg`, `.png`, etc.)
 
 **Build Outputs:**
@@ -386,25 +808,49 @@ The following are automatically excluded via `.gitignore`:
 **Environment Files:**
 - `.env`, `.env.local` - Sensitive credentials (never committed)
 
-### Ready to Push
+---
 
-All sensitive files and large files are properly excluded. The codebase is ready for GitHub!
+## 🚀 Deployment (Planned)
 
-```bash
-# Check what will be committed
-git status
+### Frontend (Vercel)
+- Connect GitHub repository
+- Set environment variables in Vercel dashboard
+- Automatic deployments on push to main
 
-# Verify large files are ignored
-git check-ignore SAM3/model.safetensors
+### Backend (Railway)
+- Connect GitHub repository
+- Set environment variables in Railway dashboard
+- Automatic deployments on push to main
 
-# Add and commit
-git add .
-git commit -m "Tennis Analytics: Complete frontend and backend implementation"
-
-# Push to GitHub
-git push origin main
-```
+### Database (Supabase)
+- Already hosted on Supabase
+- No additional deployment needed
+- Update RLS policies as needed
 
 ---
 
-**Ready to push!** 🚀
+## 📚 Additional Resources
+
+- [Next.js Documentation](https://nextjs.org/docs)
+- [FastAPI Documentation](https://fastapi.tiangolo.com/)
+- [Supabase Documentation](https://supabase.com/docs)
+- [TanStack Query Documentation](https://tanstack.com/query/latest)
+- [shadcn/ui Components](https://ui.shadcn.com/)
+
+---
+
+## 🤝 Contributing
+
+This is a private project. For questions or issues, contact the project maintainer.
+
+---
+
+## 📄 License
+
+Private project - All rights reserved.
+
+---
+
+**Last Updated**: December 2024  
+**Version**: 1.0.0  
+**Status**: Active Development
