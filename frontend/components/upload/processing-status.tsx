@@ -1,14 +1,12 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { createBrowserClient } from "@supabase/ssr"
+import { createClient } from "@/lib/supabase/client"
 import type { Match } from "@/lib/types"
 
 interface ProcessingStatusProps {
   matchId: string
 }
-
-const supabase = createBrowserClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
 const statusConfig = {
   pending: {
@@ -42,12 +40,28 @@ const statusConfig = {
 }
 
 export function ProcessingStatus({ matchId }: ProcessingStatusProps) {
+  const supabase = createClient()
   const [match, setMatch] = useState<Match | null>(null)
 
   useEffect(() => {
     const fetchMatch = async () => {
-      const { data } = await supabase.from("matches").select("*").eq("id", matchId).single()
-      setMatch(data)
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+
+      try {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/matches/${matchId}`, {
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          setMatch(data.match)
+        }
+      } catch (err) {
+        console.error('Error fetching match:', err)
+      }
     }
 
     fetchMatch()
@@ -60,7 +74,7 @@ export function ProcessingStatus({ matchId }: ProcessingStatusProps) {
     }, 5000)
 
     return () => clearInterval(interval)
-  }, [matchId, match?.status])
+  }, [matchId, match?.status, supabase])
 
   if (!match) return null
 

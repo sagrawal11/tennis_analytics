@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { X } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -27,6 +27,19 @@ export function AuthModal({ isOpen, onClose, initialMode = "signin" }: AuthModal
   const [name, setName] = useState("")
   const [role, setRole] = useState<"player" | "coach">("player")
   const [error, setError] = useState<string | null>(null)
+
+  // Update isSignUp when initialMode changes (e.g., when switching between Sign In and Sign Up buttons)
+  // Also reset form fields when modal opens or mode changes
+  useEffect(() => {
+    setIsSignUp(initialMode === "signup")
+    if (isOpen) {
+      setEmail("")
+      setPassword("")
+      setName("")
+      setRole("player")
+      setError(null)
+    }
+  }, [initialMode, isOpen])
 
   if (!isOpen) return null
 
@@ -175,7 +188,7 @@ export function AuthModal({ isOpen, onClose, initialMode = "signin" }: AuthModal
           <button
             type="button"
             onClick={toggleMode}
-            className="w-full text-center text-[#50C878] hover:text-[#6fd999] text-sm"
+            className="w-full text-center text-[#50C878] hover:text-[#6fd999] text-sm cursor-pointer"
           >
             {isSignUp ? "Already have an account? Sign in" : "Don't have an account? Sign up"}
           </button>

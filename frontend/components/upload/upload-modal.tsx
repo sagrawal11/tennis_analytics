@@ -2,32 +2,84 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useAuth } from "@/hooks/useAuth"
 import { useProfile } from "@/hooks/useProfile"
-import { createBrowserClient } from "@supabase/ssr"
+import { useTeams } from "@/hooks/useTeams"
+import { useTeamMembers } from "@/hooks/useTeamMembers"
+import { createClient } from "@/lib/supabase/client"
 
 interface UploadModalProps {
   isOpen: boolean
   onClose: () => void
 }
 
-const supabase = createBrowserClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-
 export function UploadModal({ isOpen, onClose }: UploadModalProps) {
   const router = useRouter()
   const { getUser } = useAuth()
   const { profile } = useProfile()
+  const { teams } = useTeams()
+  const supabase = createClient()
 
   const [playsightLink, setPlaysightLink] = useState("")
   const [playerName, setPlayerName] = useState("")
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string>("")
+  const [teamMembers, setTeamMembers] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const isCoach = profile?.role === "coach"
+
+  // Fetch team members when coach selects a team
+  useEffect(() => {
+    const fetchTeamMembers = async () => {
+      if (!isCoach || teams.length === 0) {
+        setTeamMembers([])
+        return
+      }
+
+      // Get all team members from all teams
+      const allMembers: any[] = []
+      for (const team of teams) {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session) continue
+
+        try {
+          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/teams/${team.id}/members`, {
+            headers: {
+              'Authorization': `Bearer ${session.access_token}`,
+            },
+          })
+
+          if (response.ok) {
+            const data = await response.json()
+            const members = (data.members || []).filter((m: any) => m.users?.role === 'player')
+            allMembers.push(...members.map((m: any) => ({
+              id: m.users?.id,
+              name: m.users?.name || m.users?.email || 'Unknown',
+              email: m.users?.email,
+            })))
+          }
+        } catch (err) {
+          console.error('Error fetching team members:', err)
+        }
+      }
+
+      // Remove duplicates
+      const uniqueMembers = Array.from(
+        new Map(allMembers.map(m => [m.id, m])).values()
+      )
+      setTeamMembers(uniqueMembers)
+    }
+
+    fetchTeamMembers()
+  }, [isCoach, teams, supabase])
 
   if (!isOpen) return null
 
@@ -49,23 +101,36 @@ export function UploadModal({ isOpen, onClose }: UploadModalProps) {
         return
       }
 
-      const { data, error: insertError } = await supabase
-        .from("matches")
-        .insert([
-          {
-            user_id: user.id,
-            playsight_link: playsightLink,
-            player_name: playerName || null,
-            status: "pending",
-          },
-        ])
-        .select()
-        .single()
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        setError("Please sign in first")
+        return
+      }
 
-      if (insertError) throw insertError
+      // Determine user_id: if coach selected a player, use that; otherwise use current user
+      const matchUserId = (isCoach && selectedPlayerId) ? selectedPlayerId : user.id
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/matches`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          playsight_link: playsightLink,
+          player_name: playerName || undefined,
+          user_id: (isCoach && selectedPlayerId) ? selectedPlayerId : undefined,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.detail || 'Failed to create match')
+      }
 
       onClose()
-      router.push(`/matches/${data.id}/identify`)
+      router.push(`/matches/${data.match.id}/identify`)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to upload video")
     } finally {
@@ -104,7 +169,27 @@ export function UploadModal({ isOpen, onClose }: UploadModalProps) {
             />
           </div>
 
-          {profile?.role === "player" && (
+          {isCoach && teamMembers.length > 0 && (
+            <div>
+              <Label htmlFor="playerSelect" className="text-gray-400 text-sm font-medium">
+                Select Player
+              </Label>
+              <Select value={selectedPlayerId} onValueChange={setSelectedPlayerId}>
+                <SelectTrigger className="mt-1 bg-black/50 border-[#333333] text-white focus:border-[#50C878] focus:ring-[#50C878]">
+                  <SelectValue placeholder="Select a player" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#1a1a1a] border-[#333333]">
+                  {teamMembers.map((member) => (
+                    <SelectItem key={member.id} value={member.id} className="text-white hover:bg-[#262626]">
+                      {member.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {!isCoach && (
             <div>
               <Label htmlFor="playerName" className="text-gray-400 text-sm font-medium">
                 Player Name (Optional)
