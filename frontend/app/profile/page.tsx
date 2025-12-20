@@ -8,13 +8,15 @@ import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Trash2, Archive, Edit, LogOut } from "lucide-react"
 import { RenameTeamModal } from "@/components/team/rename-team-modal"
+import { ArchiveTeamModal } from "@/components/team/archive-team-modal"
 
 export default function ProfilePage() {
   const { profile, isLoading } = useProfile()
-  const { teams } = useTeams()
+  const { teams, archivedTeams, archiveTeam, unarchiveTeam, isArchiving, isUnarchiving } = useTeams()
   const { getUser } = useAuth()
   const [email, setEmail] = useState<string | null>(null)
   const [renameModalOpen, setRenameModalOpen] = useState(false)
+  const [archiveModalOpen, setArchiveModalOpen] = useState(false)
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null)
   const [selectedTeamName, setSelectedTeamName] = useState<string | null>(null)
 
@@ -95,6 +97,11 @@ export default function ProfilePage() {
                                 variant="outline"
                                 size="sm"
                                 className="border-[#333333] text-gray-300 hover:border-yellow-600 hover:text-yellow-500 hover:bg-transparent bg-transparent"
+                                onClick={() => {
+                                  setSelectedTeamId(team.id)
+                                  setSelectedTeamName(team.name)
+                                  setArchiveModalOpen(true)
+                                }}
                               >
                                 <Archive className="h-4 w-4 mr-2" />
                                 Archive
@@ -126,22 +133,97 @@ export default function ProfilePage() {
                   </div>
                 )}
               </div>
+
+              {/* Archived Teams Section (Coaches Only) */}
+              {profile?.role === "coach" && archivedTeams && archivedTeams.length > 0 && (
+                <div className="mt-6">
+                  <p className="text-sm font-medium text-gray-400 mb-2">Archived Teams</p>
+                  <div className="space-y-3">
+                    {archivedTeams.map((team: any) => {
+                      const archivedByName = team.archived_by_user?.name || "Unknown"
+                      const archivedDate = team.archived_at 
+                        ? new Date(team.archived_at).toLocaleDateString('en-US', { 
+                            year: 'numeric', 
+                            month: 'short', 
+                            day: 'numeric' 
+                          })
+                        : "Unknown date"
+                      
+                      return (
+                        <div key={team.id} className="bg-black/50 rounded border border-yellow-600/50 p-4 opacity-75">
+                          <div className="flex justify-between items-start mb-3">
+                            <div>
+                              <p className="font-medium text-white">{team.name}</p>
+                              <p className="text-xs text-gray-400 font-mono mt-1">{team.code}</p>
+                              <p className="text-xs text-yellow-500 mt-1 italic">
+                                Archived by {archivedByName} on {archivedDate}
+                              </p>
+                            </div>
+                          </div>
+                        <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-[#333333]">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="border-[#333333] text-gray-300 hover:border-[#50C878] hover:text-[#50C878] hover:bg-transparent bg-transparent"
+                            onClick={async () => {
+                              try {
+                                await unarchiveTeam(team.id)
+                              } catch (error) {
+                                console.error('Failed to unarchive team:', error)
+                              }
+                            }}
+                            disabled={isUnarchiving}
+                          >
+                            <Archive className="h-4 w-4 mr-2" />
+                            {isUnarchiving ? "Unarchiving..." : "Unarchive"}
+                          </Button>
+                        </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
       </div>
 
       {selectedTeamId && selectedTeamName && (
-        <RenameTeamModal
-          isOpen={renameModalOpen}
-          onClose={() => {
-            setRenameModalOpen(false)
-            setSelectedTeamId(null)
-            setSelectedTeamName(null)
-          }}
-          teamId={selectedTeamId}
-          currentName={selectedTeamName}
-        />
+        <>
+          <RenameTeamModal
+            isOpen={renameModalOpen}
+            onClose={() => {
+              setRenameModalOpen(false)
+              setSelectedTeamId(null)
+              setSelectedTeamName(null)
+            }}
+            teamId={selectedTeamId}
+            currentName={selectedTeamName}
+          />
+          <ArchiveTeamModal
+            isOpen={archiveModalOpen}
+            onClose={() => {
+              setArchiveModalOpen(false)
+              setSelectedTeamId(null)
+              setSelectedTeamName(null)
+            }}
+            onConfirm={async () => {
+              if (selectedTeamId) {
+                try {
+                  await archiveTeam(selectedTeamId)
+                  setArchiveModalOpen(false)
+                  setSelectedTeamId(null)
+                  setSelectedTeamName(null)
+                } catch (error) {
+                  console.error('Failed to archive team:', error)
+                }
+              }
+            }}
+            teamName={selectedTeamName}
+            loading={isArchiving}
+          />
+        </>
       )}
     </MainLayout>
   )

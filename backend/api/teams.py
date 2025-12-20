@@ -171,8 +171,12 @@ async def join_team(join_data: TeamJoin, user_id: str = Depends(get_user_id)):
 
 
 @router.get("/my-teams")
-async def get_my_teams(user_id: str = Depends(get_user_id)):
-    """Get all teams the user belongs to."""
+async def get_my_teams(user_id: str = Depends(get_user_id), include_archived: bool = False):
+    """
+    Get all teams the user belongs to.
+    By default, only returns active teams. Set include_archived=True to also get archived teams.
+    Deleted teams are never returned.
+    """
     # Get team memberships
     memberships = supabase.table("team_members").select("team_id").eq("user_id", user_id).execute()
     
@@ -181,10 +185,26 @@ async def get_my_teams(user_id: str = Depends(get_user_id)):
     
     team_ids = [m["team_id"] for m in memberships.data]
     
-    # Get team details
-    teams_response = supabase.table("teams").select("*").in_("id", team_ids).execute()
+    # Build query - always exclude deleted teams
+    # Include archived_by user info for archived teams
+    query = supabase.table("teams").select("*, archived_by_user:users!archived_by(id, name)").in_("id", team_ids).neq("status", "deleted")
     
-    return {"teams": teams_response.data or []}
+    # Filter by status based on include_archived
+    if not include_archived:
+        query = query.eq("status", "active")
+    
+    teams_response = query.execute()
+    
+    # If the join didn't work, manually fetch archived_by user info
+    teams_data = teams_response.data or []
+    for team in teams_data:
+        if team.get("archived_by") and not team.get("archived_by_user"):
+            # Manually fetch the user who archived it
+            user_response = supabase.table("users").select("id, name").eq("id", team["archived_by"]).single().execute()
+            if user_response.data:
+                team["archived_by_user"] = user_response.data
+    
+    return {"teams": teams_data}
 
 
 @router.get("/{team_id}/members")
@@ -233,3 +253,84 @@ async def rename_team(team_id: str, rename_data: TeamRename, user_id: str = Depe
         raise HTTPException(status_code=500, detail="Failed to rename team")
     
     return {"message": "Team renamed successfully", "team": update_response.data[0]}
+
+
+@router.patch("/{team_id}/archive")
+async def archive_team(team_id: str, user_id: str = Depends(get_user_id)):
+    """
+    Archive a team. Only coaches who are members can archive it.
+    - Sets team status to 'archived'
+    - Removes all players from the team (keeps coaches)
+    - Team is hidden from active lists but coaches can still see it
+    """
+    # Verify user is a coach and a member of the team
+    membership = supabase.table("team_members").select("role").eq("team_id", team_id).eq("user_id", user_id).execute()
+    
+    if not membership.data:
+        raise HTTPException(status_code=403, detail="Not a member of this team")
+    
+    if membership.data[0].get("role") != "coach":
+        raise HTTPException(status_code=403, detail="Only coaches can archive teams")
+    
+    # Check if team is already archived or deleted
+    team_response = supabase.table("teams").select("status").eq("id", team_id).single().execute()
+    if not team_response.data:
+        raise HTTPException(status_code=404, detail="Team not found")
+    
+    if team_response.data.get("status") == "deleted":
+        raise HTTPException(status_code=400, detail="Cannot archive a deleted team")
+    
+    if team_response.data.get("status") == "archived":
+        raise HTTPException(status_code=400, detail="Team is already archived")
+    
+    # Update team status to archived and track who archived it
+    update_response = supabase.table("teams").update({
+        "status": "archived",
+        "archived_by": user_id,
+        "archived_at": "now()"
+    }).eq("id", team_id).execute()
+    
+    if not update_response.data:
+        raise HTTPException(status_code=500, detail="Failed to archive team")
+    
+    # Remove all players from the team (keep coaches)
+    supabase.table("team_members").delete().eq("team_id", team_id).eq("role", "player").execute()
+    
+    return {"message": "Team archived successfully. All players have been removed.", "team": update_response.data[0]}
+
+
+@router.patch("/{team_id}/unarchive")
+async def unarchive_team(team_id: str, user_id: str = Depends(get_user_id)):
+    """
+    Unarchive a team. Only coaches who are members can unarchive it.
+    - Sets team status back to 'active'
+    - Players need to rejoin via team code (not automatically re-added)
+    """
+    # Verify user is a coach and a member of the team
+    membership = supabase.table("team_members").select("role").eq("team_id", team_id).eq("user_id", user_id).execute()
+    
+    if not membership.data:
+        raise HTTPException(status_code=403, detail="Not a member of this team")
+    
+    if membership.data[0].get("role") != "coach":
+        raise HTTPException(status_code=403, detail="Only coaches can unarchive teams")
+    
+    # Check if team is archived
+    team_response = supabase.table("teams").select("status").eq("id", team_id).single().execute()
+    if not team_response.data:
+        raise HTTPException(status_code=404, detail="Team not found")
+    
+    if team_response.data.get("status") != "archived":
+        raise HTTPException(status_code=400, detail="Team is not archived")
+    
+    # Update team status to active and clear archive tracking
+    update_response = supabase.table("teams").update({
+        "status": "active",
+        "archived_by": None,
+        "archived_at": None
+    }).eq("id", team_id).execute()
+    
+    if not update_response.data:
+        raise HTTPException(status_code=500, detail="Failed to unarchive team")
+    
+    return {"message": "Team unarchived successfully. Players can rejoin using the team code.", "team": update_response.data[0]}

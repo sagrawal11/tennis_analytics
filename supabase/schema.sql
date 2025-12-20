@@ -9,6 +9,9 @@ CREATE TABLE public.teams (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     name TEXT NOT NULL,
     code TEXT UNIQUE NOT NULL,
+    status TEXT CHECK (status IN ('active', 'archived', 'deleted')) DEFAULT 'active' NOT NULL,
+    archived_by UUID REFERENCES public.users(id),
+    archived_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL
 );
