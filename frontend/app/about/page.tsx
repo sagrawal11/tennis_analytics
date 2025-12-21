@@ -5,6 +5,13 @@ import { LandingNav } from "@/components/landing/landing-nav"
 import { Footer } from "@/components/landing/footer"
 import { Button } from "@/components/ui/button"
 import { AuthModal } from "@/components/auth/auth-modal"
+import { AnimatedAboutCard } from "@/components/about/animated-about-card"
+
+const aboutSection = {
+  imageUrl: "https://images.unsplash.com/photo-1551698618-1dfe5d97d256?w=800&h=600&fit=crop&q=80",
+  imageAlt: "About Courtvision",
+  content: "Your content will go here. You can edit this text in the aboutSection object."
+}
 
 export default function AboutPage() {
   const [authOpen, setAuthOpen] = useState(false)
@@ -21,82 +28,59 @@ export default function AboutPage() {
   }
 
   return (
-    <main className="min-h-screen bg-black">
+    <main className="min-h-screen bg-black overflow-x-hidden">
       <LandingNav />
-      <div className="pt-16 pb-24">
-        <div className="max-w-4xl mx-auto px-4 py-16">
-          <h1 className="text-4xl md:text-5xl font-bold text-white mb-8 text-center">
-            About Courtvision
+      
+      {/* Hero Section */}
+      <section className="pt-32 pb-1 px-4">
+        <div className="max-w-4xl mx-auto text-center">
+          <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-white mb-6 animate-fade-in">
+            About <span className="text-[#50C878]">Courtvision</span>
           </h1>
-          
-          <div className="space-y-8">
-            <section className="bg-[#1a1a1a] rounded-xl p-8 border border-[#333333]">
-              <h2 className="text-2xl font-semibold text-white mb-4">Our Mission</h2>
-              <p className="text-gray-400 leading-relaxed">
-                Courtvision is dedicated to revolutionizing tennis analytics through advanced computer vision
-                technology. We believe that every player, from beginners to professionals, deserves access to
-                detailed performance insights that can help them improve their game.
-              </p>
-            </section>
+          <p className="text-xl text-gray-400 max-w-2xl mx-auto animate-fade-in-delay">
+            Revolutionizing tennis analytics through cutting-edge computer vision technology
+          </p>
+        </div>
+      </section>
 
-            <section className="bg-[#1a1a1a] rounded-xl p-8 border border-[#333333]">
-              <h2 className="text-2xl font-semibold text-white mb-4">Technology</h2>
-              <p className="text-gray-400 leading-relaxed mb-4">
-                Our platform leverages cutting-edge computer vision models to automatically analyze tennis matches:
-              </p>
-              <ul className="list-disc list-inside text-gray-400 space-y-2 ml-4">
-                <li>Player detection and tracking using YOLOv8 and advanced pose estimation</li>
-                <li>Ball tracking with TrackNet and YOLO fusion for robust detection</li>
-                <li>Shot classification using machine learning models</li>
-                <li>Court detection with geometric validation for accurate positioning</li>
-                <li>Bounce detection through trajectory analysis</li>
-              </ul>
-            </section>
+      {/* Main Content Section */}
+      <AnimatedAboutCard section={aboutSection} />
 
-            <section className="bg-[#1a1a1a] rounded-xl p-8 border border-[#333333]">
-              <h2 className="text-2xl font-semibold text-white mb-4">For Coaches and Players</h2>
-              <p className="text-gray-400 leading-relaxed">
-                Courtvision is designed for both coaches and players. Coaches can manage entire teams, track
-                all their players' matches, and provide data-driven feedback. Players can upload their own
-                matches, track their progress over time, and identify specific areas for improvement.
-              </p>
-            </section>
-
-            <section className="bg-[#1a1a1a] rounded-xl p-8 border border-[#333333]">
-              <h2 className="text-2xl font-semibold text-white mb-4">Privacy & Security</h2>
-              <p className="text-gray-400 leading-relaxed">
-                We take your data privacy seriously. All video processing happens securely, and your match
-                data is only accessible to you and your team. We use industry-standard encryption and follow
-                best practices for data security.
-              </p>
-            </section>
-
-            <section className="bg-[#1a1a1a] rounded-xl p-8 border border-[#333333] text-center mt-8">
-              <h2 className="text-2xl font-semibold text-white mb-4">
+      {/* CTA Section */}
+      <section className="py-12 px-4">
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-gradient-to-br from-[#1a1a1a] to-[#0f0f0f] rounded-2xl p-8 lg:p-12 border border-[#333333] text-center relative overflow-hidden group">
+            {/* Animated background */}
+            <div className="absolute inset-0 bg-gradient-to-br from-[#50C878]/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+            <div className="absolute top-0 right-0 w-64 h-64 bg-[#50C878]/10 rounded-bl-full blur-3xl" />
+            
+            <div className="relative z-10">
+              <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
                 Ready to get started?
               </h2>
-              <p className="text-gray-400 mb-6">
+              <p className="text-gray-400 mb-8 text-lg">
                 Sign in to your existing account or create a new one to start analyzing your matches today.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Button
                   onClick={openSignIn}
                   variant="outline"
-                  className="!border-white !text-white hover:!text-[#50C878] hover:!border-[#50C878] !bg-transparent hover:!bg-transparent"
+                  className="!border-white !text-white hover:!text-[#50C878] hover:!border-[#50C878] !bg-transparent hover:!bg-transparent transition-all duration-200 ease-in-out transform hover:scale-105"
                 >
                   Sign In
                 </Button>
                 <Button
                   onClick={openSignUp}
-                  className="bg-[#50C878] hover:bg-[#45b069] text-black font-semibold"
+                  className="bg-[#50C878] hover:bg-[#45b069] text-black font-semibold transition-all duration-200 ease-in-out transform hover:scale-105"
                 >
                   Create Account
                 </Button>
               </div>
-            </section>
+            </div>
           </div>
         </div>
-      </div>
+      </section>
+
       <Footer />
       <AuthModal isOpen={authOpen} onClose={() => setAuthOpen(false)} initialMode={authMode} />
     </main>

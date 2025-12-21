@@ -18,8 +18,19 @@ const testimonials = [
 
 export function TestimonialsSection() {
   return (
-    <section className="py-24 bg-black">
-      <div className="max-w-7xl mx-auto px-4">
+    <section className="py-24 relative overflow-hidden">
+      {/* Base background */}
+      <div className="absolute inset-0 bg-black" />
+      {/* Subtle green glow throughout - stronger in middle, fades at edges */}
+      <div className="absolute inset-0 bg-gradient-to-br from-[#50C878]/6 via-[#50C878]/8 to-[#50C878]/6 pointer-events-none" />
+      {/* Decorative glow accents */}
+      <div className="absolute top-1/3 right-1/3 w-[500px] h-[500px] bg-[#50C878]/5 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-1/3 left-1/3 w-[500px] h-[500px] bg-[#50C878]/5 rounded-full blur-3xl pointer-events-none" />
+      {/* Fade green glow out at top to preserve black border */}
+      <div className="absolute top-0 left-0 right-0 h-[200px] bg-gradient-to-b from-black to-transparent pointer-events-none" />
+      {/* Fade to pure black at bottom (200px) - for footer transition */}
+      <div className="absolute bottom-0 left-0 right-0 h-[200px] bg-gradient-to-b from-transparent to-black pointer-events-none" />
+      <div className="max-w-7xl mx-auto px-4 relative z-10">
         <div className="text-center mb-16">
           <h2 className="text-4xl font-bold text-white mb-4">Trusted by Coaches and Players</h2>
           <p className="text-xl text-gray-400">See what our users are saying</p>

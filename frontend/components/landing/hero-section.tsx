@@ -19,6 +19,10 @@ export function HeroSection() {
           }}
         />
         <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/60 to-black" />
+        {/* Subtle green glow overlay - stronger in middle, fades at edges */}
+        <div className="absolute inset-0 bg-gradient-to-br from-[#50C878]/8 via-[#50C878]/5 to-[#50C878]/3 pointer-events-none" />
+        {/* Fade green glow out at bottom to preserve black border */}
+        <div className="absolute bottom-0 left-0 right-0 h-[200px] bg-gradient-to-b from-transparent to-black pointer-events-none" />
 
         {/* Content */}
         <div className="relative z-10 max-w-7xl mx-auto px-4 pt-16">
