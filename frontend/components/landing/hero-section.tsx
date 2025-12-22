@@ -10,7 +10,7 @@ export function HeroSection() {
 
   return (
     <>
-      <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
+      <section className="relative min-h-screen flex items-center justify-center overflow-visible">
         {/* Background */}
         <div
           className="absolute inset-0 bg-cover bg-center"
@@ -19,10 +19,13 @@ export function HeroSection() {
           }}
         />
         <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/60 to-black" />
-        {/* Subtle green glow overlay - stronger in middle, fades at edges */}
-        <div className="absolute inset-0 bg-gradient-to-br from-[#50C878]/8 via-[#50C878]/5 to-[#50C878]/3 pointer-events-none" />
-        {/* Fade green glow out at bottom to preserve black border */}
-        <div className="absolute bottom-0 left-0 right-0 h-[200px] bg-gradient-to-b from-transparent to-black pointer-events-none" />
+        {/* Subtle green glow overlay - reduced intensity */}
+        <div className="absolute inset-0 bg-gradient-to-br from-[#50C878]/4 via-[#50C878]/3 to-[#50C878]/2 pointer-events-none" />
+        {/* Bridging glow elements that extend beyond section - reduced intensity */}
+        <div className="absolute bottom-0 left-1/4 w-[600px] h-[400px] bg-[#50C878]/4 rounded-full blur-3xl pointer-events-none z-20" />
+        <div className="absolute bottom-0 right-1/3 w-[500px] h-[350px] bg-[#50C878]/3 rounded-full blur-3xl pointer-events-none z-20" />
+        {/* Fade green glow out at bottom to preserve black border - on top */}
+        <div className="absolute bottom-0 left-0 right-0 h-[200px] bg-gradient-to-b from-transparent to-black pointer-events-none z-30" />
 
         {/* Content */}
         <div className="relative z-10 max-w-7xl mx-auto px-4 pt-16">
