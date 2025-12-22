@@ -28,6 +28,16 @@ export function AuthModal({ isOpen, onClose, initialMode = "signin" }: AuthModal
   const [role, setRole] = useState<"player" | "coach">("player")
   const [error, setError] = useState<string | null>(null)
 
+  // Password validation checks
+  const passwordChecks = {
+    hasLowercase: /[a-z]/.test(password),
+    hasUppercase: /[A-Z]/.test(password),
+    hasNumber: /[0-9]/.test(password),
+    hasMinLength: password.length >= 8,
+  }
+
+  const isPasswordValid = Object.values(passwordChecks).every(Boolean)
+
   // Update isSignUp when initialMode changes (e.g., when switching between Sign In and Sign Up buttons)
   // Also reset form fields when modal opens or mode changes
   useEffect(() => {
@@ -47,11 +57,25 @@ export function AuthModal({ isOpen, onClose, initialMode = "signin" }: AuthModal
     e.preventDefault()
     setError(null)
 
+    // Validate password requirements for signup
+    if (isSignUp && !isPasswordValid) {
+      setError("Please meet all password requirements")
+      return
+    }
+
     try {
       if (isSignUp) {
         const { data, error } = await signUp(email, password, name, role)
         if (error) {
-          setError(error.message)
+          // Filter out password validation errors - we show checklist instead
+          if (error.message && error.message.toLowerCase().includes('password')) {
+            // Only show non-password errors
+            if (!error.message.toLowerCase().includes('must include')) {
+              setError(error.message)
+            }
+          } else {
+            setError(error.message)
+          }
           return
         }
         if (data?.session) {
@@ -169,6 +193,26 @@ export function AuthModal({ isOpen, onClose, initialMode = "signin" }: AuthModal
               className="mt-1 bg-black/50 border-[#333333] text-white placeholder-gray-500 focus:border-[#50C878] focus:ring-[#50C878]"
               required
             />
+            {isSignUp && (
+              <div className="mt-2 space-y-1">
+                <div className={`text-xs flex items-center gap-2 ${passwordChecks.hasLowercase ? 'text-[#50C878]' : 'text-red-400'}`}>
+                  <span>{passwordChecks.hasLowercase ? '✓' : '•'}</span>
+                  <span>Lowercase letter</span>
+                </div>
+                <div className={`text-xs flex items-center gap-2 ${passwordChecks.hasUppercase ? 'text-[#50C878]' : 'text-red-400'}`}>
+                  <span>{passwordChecks.hasUppercase ? '✓' : '•'}</span>
+                  <span>Uppercase letter</span>
+                </div>
+                <div className={`text-xs flex items-center gap-2 ${passwordChecks.hasNumber ? 'text-[#50C878]' : 'text-red-400'}`}>
+                  <span>{passwordChecks.hasNumber ? '✓' : '•'}</span>
+                  <span>Number</span>
+                </div>
+                <div className={`text-xs flex items-center gap-2 ${passwordChecks.hasMinLength ? 'text-[#50C878]' : 'text-red-400'}`}>
+                  <span>{passwordChecks.hasMinLength ? '✓' : '•'}</span>
+                  <span>8 characters</span>
+                </div>
+              </div>
+            )}
           </div>
 
           {error && (
@@ -179,8 +223,8 @@ export function AuthModal({ isOpen, onClose, initialMode = "signin" }: AuthModal
 
           <Button
             type="submit"
-            disabled={loading}
-            className="w-full bg-[#50C878] hover:bg-[#45b069] text-black font-semibold"
+            disabled={loading || (isSignUp && !isPasswordValid)}
+            className="w-full bg-[#50C878] hover:bg-[#45b069] text-black font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? "Loading..." : isSignUp ? "Sign up" : "Sign in"}
           </Button>

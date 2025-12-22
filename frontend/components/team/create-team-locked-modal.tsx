@@ -62,7 +62,7 @@ export function CreateTeamLockedModal({ isOpen, onClose }: CreateTeamLockedModal
             <Button
               variant="outline"
               onClick={onClose}
-              className="flex-1 border-[#333333] text-white hover:bg-[#262626] hover:border-[#50C878]"
+              className="flex-1 border-white text-white hover:text-[#50C878] hover:border-[#50C878] bg-transparent hover:bg-transparent"
             >
               Got it
             </Button>

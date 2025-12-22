@@ -373,7 +373,11 @@ def process_video(
     output_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     output_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    out = cv2.VideoWriter(str(output_path), fourcc, fps, (output_width, output_height))
+    # Adjust output FPS to maintain original playback speed when skipping frames
+    # If we process every Nth frame, output FPS should be original_fps / frame_skip
+    # OR we write each frame frame_skip times - we'll write each frame frame_skip times for smooth playback
+    output_fps = original_fps  # Keep original FPS, we'll write frames multiple times
+    out = cv2.VideoWriter(str(output_path), fourcc, output_fps, (output_width, output_height))
     
     # Initialize skeleton visualizer for keypoints
     if keypoints_only:
@@ -399,17 +403,29 @@ def process_video(
     frame_count = 0
     processed_count = 0
     
+    # Calculate the last frame number we should process
+    last_frame_to_process = (frames_to_process - 1) * frame_skip
+    
     with tqdm(total=frames_to_process, desc="Processing") as pbar:
         while cap.isOpened():
+            # Safety check: stop if we've read past the last frame we need to process
+            if frame_count > last_frame_to_process:
+                print(f"\n✓ Reached last frame to process (frame {last_frame_to_process}), stopping")
+                break
+            
             ret, frame = cap.read()
             if not ret:
+                break
+            
+            # Safety check: if we've processed more frames than expected, break
+            if processed_count >= frames_to_process:
+                print(f"\n✓ Processed expected {frames_to_process} frames, stopping")
                 break
             
             # Skip frames if needed
             if frame_count % frame_skip != 0:
                 frame_count += 1
-                pbar.update(1)
-                continue
+                continue  # Don't update progress bar for skipped frames
             
             # Downscale frame if requested
             if scale_factor < 1.0:
@@ -487,21 +503,57 @@ def process_video(
                     ball_trajectory.pop(0)
             
             # Create visualization
-            vis_frame = visualizer.create_frame(
-                frame=frame,
-                player_outputs=outputs,
-                ball_detection=ball_detection,
-                ball_trajectory=ball_trajectory,
-                skeleton_visualizer=skeleton_visualizer if keypoints_only else None,
-                court_keypoints=court_keypoints
-            )
+            if not keypoints_only and MESH_VISUALIZER_AVAILABLE and len(outputs) > 0:
+                # Full mesh mode: use custom mesh visualizer with emerald green
+                try:
+                    # Get faces for mesh rendering
+                    from sam_3d_body.metadata.mhr70 import faces
+                    # Convert frame to RGB for mesh visualizer
+                    frame_rgb_for_mesh = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    # Render mesh with emerald green
+                    vis_frame_rgb = visualize_sample_together_emerald(frame_rgb_for_mesh, outputs, faces)
+                    # Convert back to BGR
+                    vis_frame = cv2.cvtColor(vis_frame_rgb.astype(np.uint8), cv2.COLOR_RGB2BGR)
+                    
+                    # Add ball and court on top of mesh
+                    if len(ball_trajectory) > 1:
+                        vis_frame = visualizer._draw_trajectory(vis_frame, ball_trajectory)
+                    if ball_detection:
+                        vis_frame = visualizer._draw_ball(vis_frame, ball_detection)
+                    if court_keypoints:
+                        vis_frame = visualizer._draw_court(vis_frame, court_keypoints)
+                except Exception as e:
+                    print(f"\nWarning: Mesh visualization failed on frame {frame_count}, falling back to skeleton: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    # Fallback to skeleton visualization
+                    vis_frame = visualizer.create_frame(
+                        frame=frame,
+                        player_outputs=outputs,
+                        ball_detection=ball_detection,
+                        ball_trajectory=ball_trajectory,
+                        skeleton_visualizer=None,
+                        court_keypoints=court_keypoints
+                    )
+            else:
+                # Keypoints-only mode or mesh not available: use skeleton visualization
+                vis_frame = visualizer.create_frame(
+                    frame=frame,
+                    player_outputs=outputs,
+                    ball_detection=ball_detection,
+                    ball_trajectory=ball_trajectory,
+                    skeleton_visualizer=skeleton_visualizer if keypoints_only else None,
+                    court_keypoints=court_keypoints
+                )
             
             # Upscale back to original resolution if we downscaled
             if scale_factor < 1.0:
                 vis_frame = cv2.resize(vis_frame, (output_width, output_height), interpolation=cv2.INTER_LINEAR)
             
-            # Write frame
-            out.write(vis_frame)
+            # Write frame multiple times to maintain original playback speed
+            # If we process every Nth frame, write each frame N times
+            for _ in range(frame_skip):
+                out.write(vis_frame)
             
             processed_count += 1
             frame_count += 1
@@ -517,7 +569,7 @@ def process_video(
     print(f"Processed {processed_count} frames (every {frame_skip} frame(s))")
     print(f"Output saved to: {output_path}")
     print(f"Output resolution: {output_width}x{output_height}")
-    print(f"Output FPS: {fps}")
+    print(f"Output FPS: {output_fps:.2f} (original: {original_fps:.2f}, frames written: {processed_count * frame_skip})")
 
 
 def main():
