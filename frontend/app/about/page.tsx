@@ -10,7 +10,7 @@ import { AnimatedAboutCard } from "@/components/about/animated-about-card"
 const aboutSection = {
   imageUrl: "https://images.unsplash.com/photo-1551698618-1dfe5d97d256?w=800&h=600&fit=crop&q=80",
   imageAlt: "About Courtvision",
-  content: "Your content will go here. You can edit this text in the aboutSection object."
+  content: "Courtvision is the all in one management and stats platform for elite college tennis programs."
 }
 
 export default function AboutPage() {

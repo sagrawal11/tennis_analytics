@@ -1,0 +1,220 @@
+Playsight Integration — End-to-end workflow (Steps 1–4)
+
+Filename: playsight_workflow_steps_1-4.txt
+Version: 2025-12-22
+Purpose: Reference file for integrating PlaySight shareable videos into a single-camera tennis analytics pipeline. Covers legal/product reality, integration approaches, and a detailed implementation plan for validation, fetching, transcoding/standardization, and frame extraction.
+
+---
+
+1. Legal / product reality you must confirm first
+
+• Access levels and ownership
+
+* PlaySight videos can be public, unlisted, behind paywalls, or restricted to facility accounts. The owner (player/coach/facility) and PlaySight platform control sharing and download permissions.
+* Before attempting programmatic downloads, confirm the video's share settings and obtain explicit permission from the owner when necessary.
+
+• Terms of service & copyright
+
+* Review PlaySight’s Terms of Use and any contract the facility or video owner has with PlaySight. Downloading or redistributing footage without proper authorization may violate terms or intellectual property rules.
+* For research/processing, include an explicit user consent checkbox where the coach confirms they have rights to share the footage with your platform.
+
+• Partnership / API access
+
+* For production scale and repeatable access, contact PlaySight for an official integration or partner API. This is the recommended route for stable authentication (OAuth/API keys), rate limits, and compliance.
+
+• Practical rule: do not attempt to scrape private videos or circumvent access controls. Design for: (A) user-pasted public/unlisted links, (B) user uploads of downloaded MP4s, or (C) OAuth/partner API.
+
+---
+
+2. Three practical integration approaches (pick depending on access & scale)
+
+A — Official integration (recommended)
+
+* Negotiate partner access with PlaySight to obtain API documentation and credentials.
+* Implement OAuth so coaches can authorize your app to read their PlaySight content.
+* Benefits: stable access, compliant, scalable, likely to support HLS, multi-angle meta, and metadata (timestamps, tags).
+
+B — User-paste + direct downloadable link (MVP-friendly)
+
+* Coaches paste a PlaySight share URL into your UI.
+* Your backend validates accessibility and then downloads or streams the asset (HLS or MP4).
+* This works when the coach owns the video and has set share permissions appropriately.
+
+C — Coach downloads & uploads
+
+* If programmatic access is blocked or undesirable, require the coach to export MP4 from PlaySight and upload to your platform.
+* Lowest friction on legal front; simplest implementation.
+
+---
+
+3. End-to-end flow (detailed) — Example for approach B (User-paste → backend fetch → process)
+
+User-facing steps
+
+1. Coach pastes PlaySight URL into a form.
+2. Your UI attempts a lightweight validation (client-side) and sends the URL to your backend for deeper checks.
+3. If the URL is inaccessible (401/403), show clear options: (a) instructions to download from PlaySight and upload, (b) link to connect PlaySight account (if you support OAuth), (c) contact facility for sharing.
+
+Backend validation & access detection (server-side)
+
+1. URL pattern check: basic sanitization and domain whitelist (e.g., playsight.com, playsight.tv, player.playsight.com). Reject suspicious or malformed URLs.
+2. HEAD request / GET with low byte range: try to identify if the URL resolves to an MP4 or HLS (m3u8). Look for Content-Type headers (e.g., video/mp4, application/vnd.apple.mpegurl).
+3. If HEAD is blocked, perform a small GET with `--range` to probe responsiveness, or fetch HTML and search for embedded m3u8 links.
+4. If the resource requires cookies or bearer tokens, capture the 401/403 response body and error code and return friendly instructions to the user.
+
+Example pseudo-logic (server)
+
+* sanitize(url)
+* if not allowed_domain(url): return error
+* resp = HEAD(url)
+* if resp.status in [200,206]:
+  content_type = resp.headers.get('content-type')
+  if 'application/vnd.apple.mpegurl' in content_type or url.endswith('.m3u8'):
+  treat as HLS
+  elif 'video/mp4' in content_type or url.endswith('.mp4'):
+  treat as MP4
+* else if resp.status in [301,302]: follow redirects (limit depth)
+* else if resp.status in [401,403]: return "needs auth" flow
+
+Fetching / Downloading
+
+* HLS streams
+
+  1. If you detect an m3u8, either stream process it directly or download using `ffmpeg` into a local file container (TS) then remux to MP4. Example:
+
+  ffmpeg -i "{m3u8_url}" -c copy temp.ts
+  ffmpeg -i temp.ts -c:v libx264 -preset fast -crf 23 -c:a aac output.mp4
+
+  2. For long videos: consider segmented download and reassembly; prefer streaming transforms if you can process frames as they arrive.
+
+* Direct MP4
+
+  1. Use range-enabled downloader (curl/wget/requests with stream) to support resumable downloads.
+  2. Validate download integrity (Content-Length vs bytes downloaded).
+
+Transcoding / Standardization
+
+* Goal: consistent frame rate, resolution, pixel format, and codec for downstream models.
+
+* Recommended target: H.264 MP4, baseline/main profile, 30 fps (or keep source fps if models are FPS-aware), 720p or 1080p depending on compute.
+
+* Example ffmpeg normalization:
+
+  ffmpeg -i input.mp4 -vf "scale=1280:-2,fps=30" -c:v libx264 -preset veryfast -crf 20 -c:a aac output_720p_30fps.mp4
+
+* If source FPS is variable: consider `-vsync vfr` or re-encode to constant frame-rate (CFR) for simpler frame indexing.
+
+Frame extraction strategy
+
+* Two approaches:
+
+  1. Batch extraction to images (good for offline heavy processing): extract all frames to disk as PNG/JPEG and run detectors on batches.
+
+     * Pros: simple, repeatable, easy to debug.
+     * Cons: large disk I/O and storage needs.
+  2. Streamed processing via OpenCV or FFmpeg pipe (recommended for production): read frames and push them to processing queue.
+
+     * Pros: lower I/O, can pipeline decode → analyze → store.
+     * Cons: requires robust streaming pipeline and fault recovery.
+
+* Example OpenCV loop (Python)
+
+  import cv2
+  cap = cv2.VideoCapture('output_720p_30fps.mp4')
+  frame_index = 0
+  while True:
+  ret, frame = cap.read()
+  if not ret:
+  break
+  # optional: convert color, resize to model input
+  # enqueue frame for detection
+  frame_index += 1
+  cap.release()
+
+* Indexing frames to timestamps
+
+  * Compute timestamp = frame_index / fps (store ms precision). Use timestamps to map events back to original video and generate clip boundaries.
+
+Storage & metadata
+
+* Store original URL, download metadata (headers, MD5/SHA1), processing timestamps, and derived asset IDs.
+* Store a JSON manifest per video with: video_id, source_url, owner_id, download_date, fps, resolution, duration_seconds, processing_version.
+
+Security, privacy, & retention
+
+* Require explicit consent for processing and retention; allow owners to request deletion.
+* Encrypt stored videos at rest and restrict access by role.
+
+---
+
+4. Example API endpoints & server architecture notes
+
+Minimal backend endpoints (HTTP + REST)
+
+* POST /api/videos/ingest
+  Payload: { "source_url": "...", "owner_id": "...", "notify_email": "..." }
+  Behavior: validate URL, attempt probe, return status: {accepted, needs_auth, must_upload}
+
+* POST /api/videos/upload
+  Payload: multipart/form-data file upload
+  Behavior: store to object storage, enqueue processing job
+
+* GET /api/videos/{id}/status
+  Response: manifest + processing progress + downloadable clips list
+
+* POST /api/accounts/connect-playsight (optional — OAuth)
+  Behavior: start OAuth flow with PlaySight; on success store access token scoped to read-only video access
+
+Processing worker architecture
+
+* Ingest service: validates and downloads video + writes manifest
+* Transcode worker: normalize with ffmpeg, write canonical MP4
+* Frame extraction & CV worker(s): read canonical MP4, run detection/tracking models, write per-event JSON
+* Aggregation service: consume events, compute derived stats & store in DB
+* Notification service: webhook/email when processing completes
+
+Queue & storage
+
+* Use SQS/Rabbit/Kafka for job queues.
+* Store raw + canonical video in S3-like object storage (with lifecycle rules).
+* Metadata and stats in relational DB (Postgres) or document DB depending on query patterns.
+
+Example ffmpeg + curl commands (quick reference)
+
+* Probe headers:
+  curl -I "{url}"
+
+* Download MP4 streaming to file:
+  curl -L --output output.mp4 "{mp4_url}"
+
+* Download HLS to MP4 via ffmpeg:
+  ffmpeg -i "{m3u8_url}" -c copy temp.ts
+  ffmpeg -i temp.ts -c:v libx264 -preset fast -crf 23 -c:a aac output.mp4
+
+---
+
+Notes, caveats & next steps
+
+• Edge cases to plan for
+
+* DRM-protected streams, expiring tokens, geo-restrictions
+* Very large files: enforce max duration, chunked uploads, resumable downloads
+* Frame-rate anomalies and variable frame-rate sources: prefer CFR for model simplicity
+
+• UX suggestions
+
+* Provide clear help text near the paste box: "Paste a PlaySight public/unlisted share URL or upload an MP4. If your video is private, download and upload it or connect PlaySight."
+* Offer a progress modal showing probe → download → transcode → analyze steps with estimated sizes (but not time to completion).
+
+• Security & compliance
+
+* Maintain audit logs for downloads and access. Include who initiated the ingest and an IP/timestamp.
+
+---
+
+If you want, you can place this exact text file in your repo as-is (playsight_workflow_steps_1-4.txt). It is written to be copy-paste ready. If you want, I can also:
+
+* produce a runnable example (Python Flask + worker) implementing /api/videos/ingest and the ffmpeg flow,
+* or provide a Dockerfile + docker-compose for a single-machine dev environment.
+
+End of file.
