@@ -69,7 +69,7 @@ class HeroVideoVisualizer:
         Create a single annotated frame.
         
         Args:
-            frame: Original frame (BGR)
+            frame: Original frame (BGR) - used only for dimensions
             player_outputs: List of SAM-3d-body outputs for each player
             ball_detection: Ball detection result (center, confidence, mask) or None
             ball_trajectory: List of recent ball positions
@@ -77,30 +77,49 @@ class HeroVideoVisualizer:
             court_keypoints: List of court keypoints (x, y) tuples or None
             
         Returns:
-            Annotated frame (BGR)
+            Annotated frame (BGR) with black background and overlays only
         """
-        vis_frame = frame.copy()
+        # Create black frame instead of copying original
+        vis_frame = np.zeros_like(frame)
+        print(f"[DEBUG create_frame] Created black frame, shape: {vis_frame.shape}, dtype: {vis_frame.dtype}")
         
         # Draw court lines first (behind everything)
         if court_keypoints:
+            print(f"[DEBUG create_frame] Drawing court with {len(court_keypoints)} keypoints")
             vis_frame = self._draw_court(vis_frame, court_keypoints)
+            print(f"[DEBUG create_frame] After court: non-zero pixels = {np.count_nonzero(vis_frame)}")
+        else:
+            print(f"[DEBUG create_frame] No court keypoints provided")
         
         # Draw ball trajectory (behind players)
         if len(ball_trajectory) > 1:
+            print(f"[DEBUG create_frame] Drawing ball trajectory with {len(ball_trajectory)} points")
             vis_frame = self._draw_trajectory(vis_frame, ball_trajectory)
+            print(f"[DEBUG create_frame] After trajectory: non-zero pixels = {np.count_nonzero(vis_frame)}")
+        else:
+            print(f"[DEBUG create_frame] No ball trajectory (length: {len(ball_trajectory)})")
         
         # Draw players
-        for player_output in player_outputs:
+        print(f"[DEBUG create_frame] Drawing {len(player_outputs)} player(s)")
+        for i, player_output in enumerate(player_outputs):
+            print(f"[DEBUG create_frame] Drawing player {i+1}/{len(player_outputs)}")
             vis_frame = self._draw_player(
                 vis_frame,
                 player_output,
                 skeleton_visualizer
             )
+            print(f"[DEBUG create_frame] After player {i+1}: non-zero pixels = {np.count_nonzero(vis_frame)}")
         
         # Draw ball (on top)
         if ball_detection:
+            print(f"[DEBUG create_frame] Drawing ball detection")
             vis_frame = self._draw_ball(vis_frame, ball_detection)
+            print(f"[DEBUG create_frame] After ball: non-zero pixels = {np.count_nonzero(vis_frame)}")
+        else:
+            print(f"[DEBUG create_frame] No ball detection provided")
         
+        print(f"[DEBUG create_frame] Final frame - non-zero pixels: {np.count_nonzero(vis_frame)} / {vis_frame.size}")
+        print(f"[DEBUG create_frame] Final frame pixel range: [{vis_frame.min()}, {vis_frame.max()}]")
         return vis_frame
     
     def _draw_player(

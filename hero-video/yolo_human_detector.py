@@ -26,7 +26,50 @@ class YOLOHumanDetector:
         if not model_path.exists():
             raise FileNotFoundError(f"YOLO model not found: {model_path}")
         
-        self.model = YOLO(str(model_path))
+        # Try to load YOLO model with error handling for checkpoint format issues
+        try:
+            self.model = YOLO(str(model_path))
+        except (AttributeError, TypeError) as e:
+            error_str = str(e)
+            if "'collections.OrderedDict' object has no attribute 'float'" in error_str or "'dict' object has no attribute 'float'" in error_str:
+                # Checkpoint format issue - try workaround with attempt_load_weights
+                print(f"⚠️ YOLO checkpoint format issue - trying workaround...")
+                try:
+                    from ultralytics.nn.tasks import attempt_load_weights
+                    # attempt_load_weights can handle different checkpoint formats
+                    self.model, ckpt = attempt_load_weights(str(model_path), device='cpu')
+                    if device and device != 'cpu':
+                        self.model = self.model.to(device)
+                    print(f"   ✅ Loaded YOLO model using workaround")
+                except Exception as e2:
+                    print(f"⚠️ Workaround failed: {e2}")
+                    print(f"   The YOLO model checkpoint format is incompatible with current ultralytics version")
+                    print(f"   Trying to downgrade ultralytics...")
+                    # Try downgrading ultralytics as a last resort
+                    import subprocess
+                    import sys
+                    try:
+                        result = subprocess.run(
+                            [sys.executable, "-m", "pip", "install", "ultralytics==8.0.196"],
+                            capture_output=True,
+                            text=True,
+                            timeout=60
+                        )
+                        if result.returncode == 0:
+                            print(f"   ✅ Downgraded ultralytics, please restart runtime and try again")
+                            print(f"   Runtime → Restart runtime, then re-run Step 5")
+                            raise ImportError("Ultralytics downgraded - restart runtime required")
+                        else:
+                            raise e
+                    except Exception as e3:
+                        print(f"   ⚠️ Could not downgrade: {e3}")
+                        print(f"   Options:")
+                        print(f"   1. Manually run: pip install 'ultralytics<8.3.0' then restart runtime")
+                        print(f"   2. Retrain/convert the model to current YOLO format")
+                        print(f"   3. Continue without YOLO (will only detect 1 person)")
+                        raise e  # Re-raise to let caller handle it
+            else:
+                raise e
         
         # Find player/person class IDs
         self.person_class_ids = set()
@@ -56,8 +99,10 @@ class YOLOHumanDetector:
         Returns:
             np.ndarray of shape (N, 4) where each row is [x1, y1, x2, y2]
         """
-        # Run YOLO inference
-        results = self.model.predict(img, verbose=False, conf=bbox_thr)
+        # Run YOLO inference with lower confidence to catch more people
+        # Use even lower conf for YOLO since we'll filter by bbox_thr later
+        yolo_conf = max(0.1, bbox_thr * 0.8)  # Use 80% of bbox_thr for YOLO, min 0.1
+        results = self.model.predict(img, verbose=False, conf=yolo_conf)
         
         if not results:
             if default_to_full_image:
@@ -91,9 +136,13 @@ class YOLOHumanDetector:
         
         boxes_array = np.array(boxes, dtype=np.float32)
         
+        print(f"[DEBUG YOLO] Found {len(boxes_array)} person detections before NMS (threshold={bbox_thr})")
+        
         # Apply NMS if we have multiple boxes
         if len(boxes_array) > 1:
+            boxes_before_nms = len(boxes_array)
             boxes_array = self._apply_nms(boxes_array, nms_thr)
+            print(f"[DEBUG YOLO] After NMS (threshold={nms_thr}): {len(boxes_array)} detections (removed {boxes_before_nms - len(boxes_array)})")
         
         return boxes_array
     

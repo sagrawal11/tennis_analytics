@@ -19,9 +19,22 @@ This guide explains how to use the `hero_video_colab.ipynb` notebook to test vid
    - Select: **GPU** (T4)
    - Click **Save**
 
-3. **Run all cells** in order
+3. **Prepare your folders (on your local machine):**
+   - Zip your `SAM-3d-body/` folder → `SAM-3d-body.zip`
+   - Zip your `SAM3/` folder → `SAM3.zip`
+   - Zip your `hero-video/` folder → `hero-video.zip`
+   - Zip your `models/` folder → `models.zip` (if you have one)
 
-4. **Upload your video** when prompted
+4. **Run cells in order:**
+   - Step 1: Install dependencies
+   - Step 2: Skip cloning (you'll upload instead)
+   - Step 3: Set up paths
+   - Step 4: **Upload your ZIP files** (SAM-3d-body.zip, SAM3.zip, hero-video.zip, etc.)
+   - Step 5: Authenticate with Hugging Face (if needed) OR skip if using local models
+   - Step 6: Load models
+   - Step 7: Configure parameters
+   - Step 8: Process video (uses your existing code!)
+   - Step 9: Download result
 
 5. **Download the processed video** at the end
 

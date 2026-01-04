@@ -10,10 +10,14 @@ import argparse
 from pathlib import Path
 from typing import List, Optional, Tuple, Dict, Any
 import json
+import subprocess
+import tempfile
+import shutil
 
 import cv2
 import numpy as np
 import torch
+import gc
 from tqdm import tqdm
 from PIL import Image
 
@@ -148,7 +152,30 @@ def process_video(
     if device is None or device == "auto":
         if torch.cuda.is_available():
             device = "cuda"
-            print("Using CUDA")
+            # Get GPU info
+            gpu_name = torch.cuda.get_device_name(0)
+            allocated = torch.cuda.memory_allocated() / 1024**3
+            reserved = torch.cuda.memory_reserved() / 1024**3
+            total = torch.cuda.get_device_properties(0).total_memory / 1024**3
+            free = total - reserved
+            
+            print(f"Using CUDA")
+            print(f"   GPU: {gpu_name}")
+            print(f"   GPU Memory: {allocated:.2f} GB allocated, {reserved:.2f} GB reserved, {free:.2f} GB free, {total:.2f} GB total")
+            
+            # A100-specific optimizations
+            if "A100" in gpu_name:
+                print(f"   ✅ A100 detected! You have plenty of memory ({free:.2f} GB free).")
+                print(f"   💡 Consider using higher quality settings:")
+                print(f"      - Higher process_resolution (e.g., 1080 or 1280 instead of 720)")
+                print(f"      - Enable ensemble ball detection for better accuracy")
+                print(f"      - Process every frame (frame_skip=1) for smoother output")
+            elif "L4" in gpu_name:
+                print(f"   ✅ L4 detected! Good memory headroom ({free:.2f} GB free).")
+            elif "T4" in gpu_name:
+                print(f"   ⚠️ T4 detected. Limited memory ({free:.2f} GB free).")
+                if free < 10.0:
+                    print(f"   💡 Consider restarting runtime or using keypoints_only mode to save memory.")
         elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
             device = "mps"
             print("Using Apple Silicon MPS")
@@ -202,6 +229,17 @@ def process_video(
             print("✓ SAM-3d-body ready (with YOLO human detector)")
         else:
             print("✓ SAM-3d-body ready (without detector, will process full image)")
+        
+        # Clear GPU cache after SAM-3d-body is loaded (model is now stored in estimator)
+        if device == "cuda" and torch.cuda.is_available():
+            print("   Clearing GPU cache before loading SAM3...")
+            # Model is stored in estimator, so we can delete the direct references
+            del model, model_cfg
+            if fov_estimator is not None:
+                del fov_estimator
+            torch.cuda.empty_cache()
+            gc.collect()
+            print("   ✓ GPU cache cleared")
     except Exception as e:
         print(f"⚠ Error setting up SAM-3d-body: {e}")
         # Fallback to standard setup
@@ -212,12 +250,47 @@ def process_video(
                 detector_name=None
             )
             print("✓ SAM-3d-body ready (fallback setup)")
+            
+            # Also clear cache for fallback path
+            if device == "cuda" and torch.cuda.is_available():
+                print("   Clearing GPU cache before loading SAM3...")
+                torch.cuda.empty_cache()
+                gc.collect()
+                print("   ✓ GPU cache cleared")
         except Exception as e2:
             print(f"✗ Failed to setup SAM-3d-body: {e2}")
             return
     
     # Setup ball detector
     print("\n2. Setting up ball detector...")
+    
+    # Check available GPU memory before loading SAM3
+    if device == "cuda" and torch.cuda.is_available():
+        allocated = torch.cuda.memory_allocated() / 1024**3
+        reserved = torch.cuda.memory_reserved() / 1024**3
+        total = torch.cuda.get_device_properties(0).total_memory / 1024**3
+        free = total - reserved
+        gpu_name = torch.cuda.get_device_name(0)
+        
+        print(f"   GPU Memory before SAM3: {allocated:.2f} GB allocated, {reserved:.2f} GB reserved, {free:.2f} GB free")
+        
+        # Adjust warning threshold based on GPU type
+        if "A100" in gpu_name:
+            warning_threshold = 10.0  # A100 has 40GB, warn if less than 10GB free
+        elif "L4" in gpu_name:
+            warning_threshold = 8.0   # L4 has 24GB, warn if less than 8GB free
+        else:
+            warning_threshold = 8.0   # T4 or other, warn if less than 8GB free
+        
+        if free < warning_threshold:
+            print(f"⚠ Warning: Only {free:.2f} GB free GPU memory available. SAM3 requires ~7-8GB.")
+            print("   If loading fails, try:")
+            print("   1. Restart the Colab runtime to free GPU memory")
+            print("   2. Use a smaller process_resolution (e.g., 480 instead of 720)")
+            print("   3. Set PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True before importing torch")
+        else:
+            print(f"   ✅ Sufficient memory available ({free:.2f} GB free) for SAM3 (~7-8GB required)")
+    
     if use_ensemble_ball and ENSEMBLE_DETECTOR_AVAILABLE:
         ball_detector = EnsembleBallDetector(device=device)
         print("✓ Ensemble ball detector ready (combines multiple models)")
@@ -242,17 +315,41 @@ def process_video(
     court_detector = None
     if enable_court_detection and COURT_DETECTION_AVAILABLE and CourtDetector:
         print("\n3. Setting up court detector...")
+        print(f"   PROJECT_ROOT: {PROJECT_ROOT}")
+        print(f"   PROJECT_ROOT exists: {PROJECT_ROOT.exists()}")
+        
         # Try to find court model
         if court_model_path is None:
-            # Try default locations
+            # Try default locations - prioritize models/court/model_tennis_court_det.pt
             possible_paths = [
-                PROJECT_ROOT / "old" / "models" / "court" / "model_tennis_court_det.pt",
-                PROJECT_ROOT / "models" / "court" / "model_tennis_court_det.pt",
+                PROJECT_ROOT / "models" / "court" / "model_tennis_court_det.pt",  # Primary location
+                PROJECT_ROOT / "old" / "models" / "court" / "model_tennis_court_det.pt",  # Legacy location
             ]
+            
+            print(f"   Searching for court model 'model_tennis_court_det.pt' in:")
+            # First try exact paths
             for path in possible_paths:
-                if path.exists():
+                exists = path.exists()
+                print(f"     {'✓' if exists else '✗'} {path}")
+                if exists:
                     court_model_path = path
+                    print(f"   ✅ Found court model at: {court_model_path}")
                     break
+            
+            # If not found, try to find any .pt file in models/court/
+            if court_model_path is None:
+                court_dir = PROJECT_ROOT / "models" / "court"
+                print(f"   Checking for any .pt files in: {court_dir}")
+                if court_dir.exists():
+                    pt_files = list(court_dir.glob("*.pt"))
+                    print(f"   Found {len(pt_files)} .pt file(s) in court directory:")
+                    for pt_file in pt_files:
+                        print(f"     - {pt_file.name}")
+                    if pt_files:
+                        court_model_path = pt_files[0]  # Use first .pt file found
+                        print(f"   ✅ Using: {court_model_path.name}")
+                else:
+                    print(f"   ✗ Court directory does not exist: {court_dir}")
         
         if court_model_path and court_model_path.exists():
             try:
@@ -281,7 +378,21 @@ def process_video(
                 court_detector = None
         else:
             print("⚠ Court detection model not found (will skip court detection)")
-            print(f"  Searched in: {possible_paths if court_model_path is None else [court_model_path]}")
+            print(f"  Searched for 'model_tennis_court_det.pt' in:")
+            for path in possible_paths:
+                exists = "✓" if path.exists() else "✗"
+                print(f"    {exists} {path}")
+            # Also check if court directory exists
+            court_dir = PROJECT_ROOT / "models" / "court"
+            if court_dir.exists():
+                print(f"  Court directory exists: {court_dir}")
+                all_files = list(court_dir.glob('*'))
+                print(f"  Files in court directory ({len(all_files)} total):")
+                for f in all_files:
+                    print(f"    - {f.name} ({'file' if f.is_file() else 'dir'})")
+            else:
+                print(f"  ✗ Court directory does not exist: {court_dir}")
+                print(f"  Make sure the model is at: {PROJECT_ROOT / 'models' / 'court' / 'model_tennis_court_det.pt'}")
     else:
         if not enable_court_detection:
             print("\n3. Court detection disabled by user")
@@ -372,12 +483,111 @@ def process_video(
     # Setup output video writer (use original resolution for output)
     output_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     output_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    # Adjust output FPS to maintain original playback speed when skipping frames
-    # If we process every Nth frame, output FPS should be original_fps / frame_skip
-    # OR we write each frame frame_skip times - we'll write each frame frame_skip times for smooth playback
+    
+    # Ensure output directory exists
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    # Try multiple codecs - in Colab, some codecs report success but don't actually work
+    # Try H.264 variants first (most compatible), then fallback options
+    fourcc_options = ['H264', 'avc1', 'XVID', 'mp4v', 'MJPG']
+    fourcc = None
+    out = None
+    use_ffmpeg_fallback = False
+    temp_frame_dir = None
+    # Initialize output_fps (used in both VideoWriter and ffmpeg fallback)
     output_fps = original_fps  # Keep original FPS, we'll write frames multiple times
-    out = cv2.VideoWriter(str(output_path), fourcc, output_fps, (output_width, output_height))
+    
+    for codec in fourcc_options:
+        try:
+            fourcc = cv2.VideoWriter_fourcc(*codec)
+            out = cv2.VideoWriter(str(output_path), fourcc, output_fps, (output_width, output_height))
+            # Test if writer is actually working by checking isOpened() AND trying to write a test frame
+            if out.isOpened():
+                # Try writing a test frame to verify the codec actually works
+                # Use contiguous array to match what we'll write during processing
+                test_frame = np.zeros((output_height, output_width, 3), dtype=np.uint8)
+                test_frame = np.ascontiguousarray(test_frame)
+                test_write = out.write(test_frame)
+                if test_write:
+                    print(f"✓ VideoWriter initialized successfully with codec '{codec}' (test write passed)")
+                    # Note: We wrote one black test frame, which is fine - it's negligible
+                    break
+                else:
+                    print(f"⚠ Codec '{codec}' initialized but test write failed, trying next...")
+                    out.release()
+                    out = None
+            else:
+                out.release()
+                out = None
+                print(f"⚠ Codec '{codec}' failed to open, trying next...")
+        except Exception as e:
+            print(f"⚠ Codec '{codec}' error: {e}")
+            if out:
+                out.release()
+            out = None
+            continue
+    
+    # If all OpenCV codecs failed, use ffmpeg fallback (common in Colab)
+    if out is None or not out.isOpened():
+        print(f"⚠ All OpenCV codecs failed, using ffmpeg fallback...")
+        print(f"   This is common in Colab environments")
+        
+        # Create temporary directory for frames
+        temp_frame_dir = Path(tempfile.mkdtemp(prefix="hero_video_frames_"))
+        print(f"   Temporary frame directory: {temp_frame_dir}")
+        use_ffmpeg_fallback = True
+        out = None  # We'll write frames as images instead
+        
+        # Verify ffmpeg is available
+        try:
+            result = subprocess.run(['ffmpeg', '-version'], 
+                                  capture_output=True, 
+                                  text=True, 
+                                  timeout=5)
+            if result.returncode != 0:
+                print(f"❌ ERROR: ffmpeg is not available!")
+                print(f"   Please install ffmpeg: apt-get install -y ffmpeg")
+                cap.release()
+                return
+            print(f"✓ ffmpeg is available")
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            print(f"❌ ERROR: ffmpeg is not installed!")
+            print(f"   Please install ffmpeg: apt-get install -y ffmpeg")
+            cap.release()
+            return
+    
+    # Print GPU memory status if using CUDA
+    if device == "cuda" and torch.cuda.is_available():
+        allocated = torch.cuda.memory_allocated() / 1024**3
+        reserved = torch.cuda.memory_reserved() / 1024**3
+        total = torch.cuda.get_device_properties(0).total_memory / 1024**3
+        free = total - reserved
+        gpu_name = torch.cuda.get_device_name(0)
+        
+        print(f"\n📊 GPU Memory Status:")
+        print(f"   GPU: {gpu_name}")
+        print(f"   Allocated: {allocated:.2f} GB")
+        print(f"   Reserved: {reserved:.2f} GB")
+        print(f"   Free: {free:.2f} GB")
+        print(f"   Total: {total:.2f} GB")
+        
+        # Adjust warning threshold based on GPU
+        if "A100" in gpu_name:
+            if free < 5.0:
+                print(f"   ⚠️ WARNING: Low free GPU memory ({free:.2f} GB) for A100!")
+                print(f"   Detections may fail. Consider restarting the Colab runtime.")
+            else:
+                print(f"   ✅ Excellent memory headroom for A100!")
+        elif "L4" in gpu_name:
+            if free < 3.0:
+                print(f"   ⚠️ WARNING: Low free GPU memory ({free:.2f} GB) for L4!")
+                print(f"   Detections may fail. Consider restarting the Colab runtime.")
+            else:
+                print(f"   ✅ Good memory headroom for L4!")
+        else:
+            if free < 2.0:
+                print(f"   ⚠️ WARNING: Very little free GPU memory ({free:.2f} GB)!")
+                print(f"   Detections may fail. Consider restarting the Colab runtime.")
     
     # Initialize skeleton visualizer for keypoints
     if keypoints_only:
@@ -427,133 +637,253 @@ def process_video(
                 frame_count += 1
                 continue  # Don't update progress bar for skipped frames
             
+            print(f"\n{'='*80}")
+            print(f"[DEBUG] ========== PROCESSING FRAME {frame_count} ==========")
+            print(f"[DEBUG Frame {frame_count}] Frame shape: {frame.shape}, dtype: {frame.dtype}")
+            print(f"[DEBUG Frame {frame_count}] Frame pixel range: [{frame.min()}, {frame.max()}]")
+            
             # Downscale frame if requested
             if scale_factor < 1.0:
+                print(f"[DEBUG Frame {frame_count}] Downscaling frame from {frame.shape[:2]} to ({process_height}, {process_width})")
                 frame = cv2.resize(frame, (process_width, process_height), interpolation=cv2.INTER_AREA)
+                print(f"[DEBUG Frame {frame_count}] After downscale: {frame.shape}")
+            
+            # Clear GPU cache before processing to prevent memory accumulation
+            if device == "cuda" and torch.cuda.is_available():
+                torch.cuda.empty_cache()
             
             # Process with SAM-3d-body
+            print(f"\n[DEBUG Frame {frame_count}] Starting SAM-3d-body processing...")
             try:
                 # Convert BGR to RGB for SAM-3d-body
                 frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                print(f"[DEBUG Frame {frame_count}] Frame converted to RGB, shape: {frame_rgb.shape}")
                 
-                # Run inference
+                # Run inference with lower thresholds for better multi-person detection
+                print(f"[DEBUG Frame {frame_count}] Calling estimator.process_one_image()...")
+                # Check if detector is being used
+                if hasattr(estimator, 'detector') and estimator.detector is not None:
+                    print(f"[DEBUG Frame {frame_count}] Using human detector: {type(estimator.detector).__name__}")
+                else:
+                    print(f"[DEBUG Frame {frame_count}] ⚠️ No human detector - will process full image as single person")
+                
                 outputs = estimator.process_one_image(
                     frame_rgb,
-                    inference_type="full" if not keypoints_only else "keypoints_only"
+                    inference_type="full" if not keypoints_only else "keypoints_only",
+                    bbox_thr=0.15,  # Even lower threshold to detect more people (was 0.25, default is 0.5)
+                    nms_thr=0.5,    # Higher NMS to keep separate people (was 0.4, default is 0.3)
                 )
+                print(f"[DEBUG Frame {frame_count}] SAM-3d-body returned {len(outputs)} output(s)")
+                
+                # Clear GPU cache after processing
+                if device == "cuda" and torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                
+                if len(outputs) > 0:
+                    print(f"[DEBUG Frame {frame_count}] First output keys: {list(outputs[0].keys())}")
+                    if "pred_keypoints_2d" in outputs[0]:
+                        kp_shape = outputs[0]["pred_keypoints_2d"].shape
+                        print(f"[DEBUG Frame {frame_count}] Keypoints shape: {kp_shape}")
+                        print(f"[DEBUG Frame {frame_count}] Sample keypoint: {outputs[0]['pred_keypoints_2d'][0] if kp_shape[0] > 0 else 'N/A'}")
+                else:
+                    print(f"[DEBUG Frame {frame_count}] ⚠️ NO PLAYER DETECTIONS!")
             except Exception as e:
-                print(f"\nWarning: SAM-3d-body processing failed on frame {frame_count}: {e}")
+                print(f"[DEBUG Frame {frame_count}] ❌ SAM-3d-body processing failed: {e}")
+                import traceback
+                traceback.print_exc()
                 outputs = []
             
             # Process with ball detector
+            print(f"[DEBUG Frame {frame_count}] Starting ball detection...")
             ball_detection = None
             try:
                 if use_ensemble_ball and ENSEMBLE_DETECTOR_AVAILABLE:
+                    print(f"[DEBUG Frame {frame_count}] Using ensemble ball detector")
                     ball_detection = ball_detector.detect_ball(frame, text_prompt=ball_prompt)
                 elif hasattr(ball_detector, 'detect_ball'):
+                    print(f"[DEBUG Frame {frame_count}] Using ball_detector.detect_ball()")
                     # SAM3 or other detector
                     if hasattr(ball_detector.detect_ball, '__code__'):
                         # Check if it accepts threshold parameter
                         import inspect
                         sig = inspect.signature(ball_detector.detect_ball)
                         if 'threshold' in sig.parameters:
+                            print(f"[DEBUG Frame {frame_count}] Ball detector accepts threshold parameter")
                             ball_detection = ball_detector.detect_ball(
                                 frame,
                                 text_prompt=ball_prompt,
                                 threshold=0.3
                             )
                         else:
+                            print(f"[DEBUG Frame {frame_count}] Ball detector does NOT accept threshold")
                             ball_detection = ball_detector.detect_ball(frame, text_prompt=ball_prompt)
                     else:
+                        print(f"[DEBUG Frame {frame_count}] Ball detector is not a function")
                         ball_detection = ball_detector.detect_ball(frame, text_prompt=ball_prompt)
+                else:
+                    print(f"[DEBUG Frame {frame_count}] ⚠️ Ball detector has no detect_ball method!")
+                
+                if ball_detection:
+                    center, conf, mask = ball_detection
+                    print(f"[DEBUG Frame {frame_count}] ✅ Ball detected at {center} (confidence: {conf:.2f})")
+                    if mask is not None:
+                        print(f"[DEBUG Frame {frame_count}] Ball mask shape: {mask.shape}, non-zero pixels: {np.count_nonzero(mask)}")
+                else:
+                    print(f"[DEBUG Frame {frame_count}] ⚠️ No ball detected")
             except Exception as e:
-                # Silently fail - don't spam warnings
+                print(f"[DEBUG Frame {frame_count}] ❌ Ball detection error: {e}")
+                import traceback
+                traceback.print_exc()
                 pass
             
             # Process with court detector (optional, skip every few frames for speed)
+            print(f"[DEBUG Frame {frame_count}] Checking court detection...")
             court_keypoints = None
             if enable_court_detection and court_detector and court_detector.model is not None:
+                print(f"[DEBUG Frame {frame_count}] Court detector available, enable_court_detection={enable_court_detection}")
                 # Only run court detection every 10th processed frame (saves significant time)
                 if processed_count % 10 == 0:
+                    print(f"[DEBUG Frame {frame_count}] Running court detection (every 10th frame)...")
                     try:
                         court_keypoints = court_detector.detect_court_in_frame(frame)
+                        print(f"[DEBUG Frame {frame_count}] Court detector returned: {type(court_keypoints)}")
                         # Filter out None points
                         if court_keypoints:
                             court_keypoints = [
                                 (kp[0], kp[1]) if kp and kp[0] is not None and kp[1] is not None else None
                                 for kp in court_keypoints
                             ]
+                            valid_points = sum(1 for kp in court_keypoints if kp is not None)
+                            print(f"[DEBUG Frame {frame_count}] ✅ Court detected: {valid_points} valid keypoints out of {len(court_keypoints)}")
+                        else:
+                            print(f"[DEBUG Frame {frame_count}] ⚠️ Court detector returned None/empty")
                     except Exception as e:
-                        # Silently fail - court detection is optional
+                        print(f"[DEBUG Frame {frame_count}] ❌ Court detection error: {e}")
                         court_keypoints = None
                 else:
+                    print(f"[DEBUG Frame {frame_count}] Skipping court detection (not every 10th frame)")
                     # Reuse previous court detection (courts don't move much)
                     pass  # Will use None, which is fine
+            else:
+                print(f"[DEBUG Frame {frame_count}] Court detection disabled or unavailable")
             
             # Update ball trajectory
+            print(f"[DEBUG Frame {frame_count}] Updating ball trajectory...")
             if ball_detection:
                 center, confidence, mask = ball_detection
                 ball_trajectory.append(center)
+                print(f"[DEBUG Frame {frame_count}] Added ball to trajectory. Trajectory length: {len(ball_trajectory)}")
                 # Keep only recent trajectory points
                 if len(ball_trajectory) > trail_length:
                     ball_trajectory.pop(0)
+                    print(f"[DEBUG Frame {frame_count}] Trimmed trajectory to {trail_length} points")
             else:
                 # Keep trajectory even if ball not detected (fade out)
                 if len(ball_trajectory) > 0:
                     ball_trajectory.pop(0)
+                    print(f"[DEBUG Frame {frame_count}] No ball, fading trajectory. Remaining: {len(ball_trajectory)}")
+            print(f"[DEBUG Frame {frame_count}] Final trajectory length: {len(ball_trajectory)}")
             
             # Create visualization
+            print(f"[DEBUG Frame {frame_count}] Creating visualization...")
+            print(f"[DEBUG Frame {frame_count}]   - keypoints_only: {keypoints_only}")
+            print(f"[DEBUG Frame {frame_count}]   - MESH_VISUALIZER_AVAILABLE: {MESH_VISUALIZER_AVAILABLE}")
+            print(f"[DEBUG Frame {frame_count}]   - len(outputs): {len(outputs)}")
+            print(f"[DEBUG Frame {frame_count}]   - ball_detection: {ball_detection is not None}")
+            print(f"[DEBUG Frame {frame_count}]   - len(ball_trajectory): {len(ball_trajectory)}")
+            print(f"[DEBUG Frame {frame_count}]   - court_keypoints: {court_keypoints is not None}")
+            
+            # Always use create_frame which creates black background and draws all overlays
+            # This works for both mesh and keypoints-only modes, and handles empty outputs
+            print(f"[DEBUG Frame {frame_count}] Calling visualizer.create_frame()...")
+            vis_frame = visualizer.create_frame(
+                frame=frame,
+                player_outputs=outputs,
+                ball_detection=ball_detection,
+                ball_trajectory=ball_trajectory,
+                skeleton_visualizer=skeleton_visualizer if keypoints_only else None,
+                court_keypoints=court_keypoints
+            )
+            print(f"[DEBUG Frame {frame_count}] create_frame() returned frame shape: {vis_frame.shape}, dtype: {vis_frame.dtype}")
+            print(f"[DEBUG Frame {frame_count}] Frame pixel range: [{vis_frame.min()}, {vis_frame.max()}]")
+            print(f"[DEBUG Frame {frame_count}] Non-zero pixels: {np.count_nonzero(vis_frame)} / {vis_frame.size}")
+            
+            # If we have mesh mode and outputs, overlay the 3D mesh on top of the skeleton frame
             if not keypoints_only and MESH_VISUALIZER_AVAILABLE and len(outputs) > 0:
-                # Full mesh mode: use custom mesh visualizer with emerald green
+                print(f"[DEBUG Frame {frame_count}] Attempting mesh rendering...")
                 try:
-                    # Get faces for mesh rendering
-                    from sam_3d_body.metadata.mhr70 import faces
-                    # Convert frame to RGB for mesh visualizer
-                    frame_rgb_for_mesh = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                    # Render mesh with emerald green
-                    vis_frame_rgb = visualize_sample_together_emerald(frame_rgb_for_mesh, outputs, faces)
+                    # Get faces for mesh rendering from estimator (not from mhr70 module)
+                    if not hasattr(estimator, 'faces') or estimator.faces is None:
+                        raise AttributeError("estimator.faces is not available")
+                    faces = estimator.faces
+                    print(f"[DEBUG Frame {frame_count}] Faces loaded from estimator, shape: {faces.shape}")
+                    # Convert current vis_frame (which has ball/court/skeleton) to RGB for mesh visualizer
+                    vis_frame_rgb = cv2.cvtColor(vis_frame, cv2.COLOR_BGR2RGB)
+                    print(f"[DEBUG Frame {frame_count}] Converted to RGB, calling visualize_sample_together_emerald()...")
+                    # Render mesh with emerald green (this will composite mesh on top of existing overlays)
+                    mesh_frame_rgb = visualize_sample_together_emerald(vis_frame_rgb, outputs, faces)
+                    print(f"[DEBUG Frame {frame_count}] Mesh visualization returned, shape: {mesh_frame_rgb.shape}, dtype: {mesh_frame_rgb.dtype}")
+                    print(f"[DEBUG Frame {frame_count}] Mesh frame pixel range: [{mesh_frame_rgb.min()}, {mesh_frame_rgb.max()}]")
+                    print(f"[DEBUG Frame {frame_count}] Mesh frame non-zero pixels: {np.count_nonzero(mesh_frame_rgb)} / {mesh_frame_rgb.size}")
                     # Convert back to BGR
-                    vis_frame = cv2.cvtColor(vis_frame_rgb.astype(np.uint8), cv2.COLOR_RGB2BGR)
-                    
-                    # Add ball and court on top of mesh
-                    if len(ball_trajectory) > 1:
-                        vis_frame = visualizer._draw_trajectory(vis_frame, ball_trajectory)
-                    if ball_detection:
-                        vis_frame = visualizer._draw_ball(vis_frame, ball_detection)
-                    if court_keypoints:
-                        vis_frame = visualizer._draw_court(vis_frame, court_keypoints)
+                    vis_frame = cv2.cvtColor(mesh_frame_rgb.astype(np.uint8), cv2.COLOR_RGB2BGR)
+                    print(f"[DEBUG Frame {frame_count}] Converted back to BGR, final shape: {vis_frame.shape}")
                 except Exception as e:
-                    print(f"\nWarning: Mesh visualization failed on frame {frame_count}, falling back to skeleton: {e}")
+                    # If mesh rendering fails, keep the skeleton frame we already have
+                    print(f"[DEBUG Frame {frame_count}] ❌ Mesh rendering failed (using skeleton): {e}")
                     import traceback
                     traceback.print_exc()
-                    # Fallback to skeleton visualization
-                    vis_frame = visualizer.create_frame(
-                        frame=frame,
-                        player_outputs=outputs,
-                        ball_detection=ball_detection,
-                        ball_trajectory=ball_trajectory,
-                        skeleton_visualizer=None,
-                        court_keypoints=court_keypoints
-                    )
             else:
-                # Keypoints-only mode or mesh not available: use skeleton visualization
-                vis_frame = visualizer.create_frame(
-                    frame=frame,
-                    player_outputs=outputs,
-                    ball_detection=ball_detection,
-                    ball_trajectory=ball_trajectory,
-                    skeleton_visualizer=skeleton_visualizer if keypoints_only else None,
-                    court_keypoints=court_keypoints
-                )
+                print(f"[DEBUG Frame {frame_count}] Skipping mesh rendering (keypoints_only={keypoints_only}, MESH_AVAILABLE={MESH_VISUALIZER_AVAILABLE}, outputs={len(outputs)})")
             
             # Upscale back to original resolution if we downscaled
             if scale_factor < 1.0:
+                print(f"[DEBUG Frame {frame_count}] Upscaling from {vis_frame.shape[:2]} to ({output_height}, {output_width})")
                 vis_frame = cv2.resize(vis_frame, (output_width, output_height), interpolation=cv2.INTER_LINEAR)
+                print(f"[DEBUG Frame {frame_count}] Upscaled frame shape: {vis_frame.shape}")
             
-            # Write frame multiple times to maintain original playback speed
-            # If we process every Nth frame, write each frame N times
-            for _ in range(frame_skip):
-                out.write(vis_frame)
+            print(f"[DEBUG Frame {frame_count}] Final frame before writing - shape: {vis_frame.shape}, dtype: {vis_frame.dtype}")
+            print(f"[DEBUG Frame {frame_count}] Final frame pixel range: [{vis_frame.min()}, {vis_frame.max()}]")
+            print(f"[DEBUG Frame {frame_count}] Final frame non-zero pixels: {np.count_nonzero(vis_frame)} / {vis_frame.size}")
+            
+            # Write frame(s) - either via VideoWriter or save as images for ffmpeg
+            if use_ffmpeg_fallback:
+                # Save frame as image (write multiple times if frame_skip > 1)
+                print(f"[DEBUG Frame {frame_count}] Saving frame as image(s) for ffmpeg (frame_skip={frame_skip})...")
+                for i in range(frame_skip):
+                    frame_filename = temp_frame_dir / f"frame_{processed_count * frame_skip + i:08d}.png"
+                    # Ensure frame is contiguous
+                    if not vis_frame.flags['C_CONTIGUOUS']:
+                        vis_frame = np.ascontiguousarray(vis_frame)
+                    cv2.imwrite(str(frame_filename), vis_frame)
+                print(f"[DEBUG Frame {frame_count}] ✅ Frame saved as image(s)")
+            else:
+                # Check VideoWriter status before writing
+                if not out.isOpened():
+                    print(f"[DEBUG Frame {frame_count}] ❌ CRITICAL: VideoWriter is not open! Cannot write frames.")
+                    break
+                
+                # Write frame multiple times to maintain original playback speed
+                # If we process every Nth frame, write each frame N times
+                print(f"[DEBUG Frame {frame_count}] Writing frame {frame_skip} time(s)...")
+                write_success = True
+                for i in range(frame_skip):
+                    # Ensure frame is contiguous in memory (some codecs require this)
+                    if not vis_frame.flags['C_CONTIGUOUS']:
+                        vis_frame = np.ascontiguousarray(vis_frame)
+                    
+                    success = out.write(vis_frame)
+                    if not success:
+                        print(f"[DEBUG Frame {frame_count}] ❌ ERROR: VideoWriter.write() returned False on iteration {i}")
+                        write_success = False
+                        # Check if writer is still open
+                        if not out.isOpened():
+                            print(f"[DEBUG Frame {frame_count}] ❌ VideoWriter is no longer open!")
+                            break
+                if write_success:
+                    print(f"[DEBUG Frame {frame_count}] ✅ Frame written successfully")
+                else:
+                    print(f"[DEBUG Frame {frame_count}] ⚠️ Frame write had issues but continuing...")
             
             processed_count += 1
             frame_count += 1
@@ -561,7 +891,74 @@ def process_video(
     
     # Cleanup
     cap.release()
-    out.release()
+    
+    # If using ffmpeg fallback, combine frames into video
+    if use_ffmpeg_fallback:
+        print("\n" + "="*60)
+        print("Combining frames with ffmpeg...")
+        print("="*60)
+        
+        # Count actual frames saved
+        frame_files = sorted(temp_frame_dir.glob("frame_*.png"))
+        num_frames = len(frame_files)
+        print(f"Found {num_frames} frame images to combine")
+        
+        if num_frames == 0:
+            print("❌ ERROR: No frames were saved!")
+            if temp_frame_dir and temp_frame_dir.exists():
+                shutil.rmtree(temp_frame_dir)
+            return
+        
+        # Use ffmpeg to combine frames into video
+        # Pattern: frame_%08d.png (8-digit zero-padded frame numbers)
+        frame_pattern = str(temp_frame_dir / "frame_%08d.png")
+        
+        # Build ffmpeg command
+        ffmpeg_cmd = [
+            'ffmpeg',
+            '-y',  # Overwrite output file
+            '-framerate', str(output_fps),  # Input frame rate
+            '-i', frame_pattern,  # Input pattern
+            '-c:v', 'libx264',  # H.264 codec
+            '-pix_fmt', 'yuv420p',  # Pixel format for compatibility
+            '-crf', '18',  # High quality (lower = better quality, 18-23 is good)
+            '-preset', 'medium',  # Encoding speed vs compression
+            str(output_path)
+        ]
+        
+        print(f"Running ffmpeg command:")
+        print(f"  {' '.join(ffmpeg_cmd)}")
+        
+        try:
+            result = subprocess.run(
+                ffmpeg_cmd,
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            print(f"✓ ffmpeg completed successfully")
+            if result.stderr:
+                # ffmpeg outputs progress to stderr
+                print(f"ffmpeg output: {result.stderr[-500:]}")  # Last 500 chars
+        except subprocess.CalledProcessError as e:
+            print(f"❌ ERROR: ffmpeg failed!")
+            print(f"   Return code: {e.returncode}")
+            print(f"   stderr: {e.stderr}")
+            print(f"   stdout: {e.stdout}")
+            # Clean up temp directory
+            if temp_frame_dir and temp_frame_dir.exists():
+                shutil.rmtree(temp_frame_dir)
+            return
+        
+        # Clean up temporary frame directory
+        print(f"Cleaning up temporary frame directory...")
+        if temp_frame_dir and temp_frame_dir.exists():
+            shutil.rmtree(temp_frame_dir)
+            print(f"✓ Temporary files cleaned up")
+    else:
+        # Normal VideoWriter cleanup
+        if out:
+            out.release()
     
     print("\n" + "="*60)
     print("Processing Complete!")
